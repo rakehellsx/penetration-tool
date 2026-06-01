@@ -85,6 +85,87 @@ interface Message {
   isStreaming?: boolean;
   codeBlocks?: Array<{ language: string; code: string }>;
   toolCalls?: Array<{ tool: string; args: Record<string, unknown> }>;
+  tokens?: number;
+  durationMs?: number;
+}
+
+// ─── Code Block Renderer with language label + copy button ──────────────────
+function CodeBlockRenderer({ content, isStreaming }: { content: string; isStreaming?: boolean }) {
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+
+  // Parse markdown into segments: text + code blocks
+  const segments: Array<{ type: "text" | "code"; content: string; language?: string }> = [];
+  const regex = /```(\w+)?\n([\s\S]*?)```/g;
+  let lastIndex = 0;
+  let match;
+  let idx = 0;
+  while ((match = regex.exec(content)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ type: "text", content: content.slice(lastIndex, match.index) });
+    }
+    segments.push({ type: "code", content: match[2].trimEnd(), language: match[1] ?? "text" });
+    lastIndex = match.index + match[0].length;
+    idx++;
+  }
+  if (lastIndex < content.length) {
+    segments.push({ type: "text", content: content.slice(lastIndex) });
+  }
+
+  const handleCopyCode = (code: string, i: number) => {
+    navigator.clipboard.writeText(code);
+    setCopiedIdx(i);
+    setTimeout(() => setCopiedIdx(null), 2000);
+  };
+
+  // If no code blocks found, fall back to Streamdown
+  if (segments.every(s => s.type === "text")) {
+    return (
+      <>
+        <Streamdown>{content}</Streamdown>
+        {isStreaming && <span className="inline-block w-0.5 h-4 bg-purple-500 animate-pulse ml-0.5 align-middle" />}
+      </>
+    );
+  }
+
+  let codeIdx = 0;
+  return (
+    <div className="space-y-2">
+      {segments.map((seg, i) => {
+        if (seg.type === "text") {
+          return seg.content.trim() ? (
+            <div key={i} className="prose prose-sm max-w-none">
+              <Streamdown>{seg.content}</Streamdown>
+            </div>
+          ) : null;
+        }
+        const ci = codeIdx++;
+        const lang = seg.language ?? "text";
+        return (
+          <div key={i} className="relative rounded-xl overflow-hidden border border-[var(--editor-border)] shadow-sm">
+            {/* Language label bar */}
+            <div className="flex items-center justify-between px-3 py-1.5 bg-[var(--editor-tab)] border-b border-[var(--editor-border)]">
+              <span className="text-[11px] font-semibold font-mono text-purple-300 uppercase tracking-wide">{lang}</span>
+              <button
+                onClick={() => handleCopyCode(seg.content, ci)}
+                className="flex items-center gap-1 text-[10px] text-[var(--sidebar-fg)] hover:text-white transition-colors px-1.5 py-0.5 rounded hover:bg-white/10"
+              >
+                {copiedIdx === ci ? (
+                  <><Check className="w-3 h-3 text-green-400" /><span className="text-green-400">已复制</span></>
+                ) : (
+                  <><Copy className="w-3 h-3" /><span>复制</span></>
+                )}
+              </button>
+            </div>
+            {/* Code content */}
+            <pre className="bg-[var(--editor-bg)] text-[var(--editor-fg)] p-4 overflow-x-auto max-h-96 overflow-y-auto text-xs leading-5 m-0 font-mono">
+              <code>{seg.content}</code>
+            </pre>
+          </div>
+        );
+      })}
+      {isStreaming && <span className="inline-block w-0.5 h-4 bg-purple-500 animate-pulse ml-0.5 align-middle" />}
+    </div>
+  );
 }
 
 // ─── Extract code blocks ───────────────────────────────────────────────────
@@ -282,19 +363,40 @@ function MessageBubble({ message, onSaveCode, onToolExecute }: {
           {isUser ? (
             <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
           ) : (
-            <div className="prose prose-sm max-w-none [&_pre]:bg-[var(--editor-bg)] [&_pre]:text-[var(--editor-fg)] [&_pre]:rounded-xl [&_pre]:p-4 [&_pre]:overflow-x-auto [&_pre]:max-h-96 [&_pre]:overflow-y-auto [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono">
-              <Streamdown>{message.content}</Streamdown>
-              {message.isStreaming && (
-                <span className="inline-block w-0.5 h-4 bg-purple-500 animate-pulse ml-0.5 align-middle" />
-              )}
+            <div className="prose prose-sm max-w-none
+              [&_pre]:relative
+              [&_pre]:bg-[var(--editor-bg)] [&_pre]:text-[var(--editor-fg)]
+              [&_pre]:rounded-xl [&_pre]:pt-8 [&_pre]:pb-4 [&_pre]:px-4
+              [&_pre]:overflow-x-auto [&_pre]:max-h-96 [&_pre]:overflow-y-auto
+              [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono
+              [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:rounded-none">
+              <CodeBlockRenderer content={message.content} isStreaming={message.isStreaming} />
             </div>
           )}
           {!isUser && !message.isStreaming && (
-            <button onClick={handleCopy} className="absolute top-2 right-2 w-6 h-6 rounded-md bg-muted/60 hover:bg-muted flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onClick={handleCopy} className="absolute top-2 right-2 w-6 h-6 rounded-md bg-muted/60 hover:bg-muted flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" title="复制全文">
               {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3 text-muted-foreground" />}
             </button>
           )}
         </div>
+
+        {/* Token stats */}
+        {!isUser && !message.isStreaming && (message.tokens || message.durationMs) && (
+          <div className="mt-1.5 flex items-center gap-2 text-[10px] text-muted-foreground">
+            {message.tokens && (
+              <span className="flex items-center gap-1 bg-muted/60 px-2 py-0.5 rounded-full border border-border">
+                <Zap className="w-2.5 h-2.5 text-amber-500" />
+                {message.tokens} tokens
+              </span>
+            )}
+            {message.durationMs && (
+              <span className="flex items-center gap-1 bg-muted/60 px-2 py-0.5 rounded-full border border-border">
+                <Clock className="w-2.5 h-2.5 text-blue-500" />
+                {(message.durationMs / 1000).toFixed(1)}s
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Code save button - only show after streaming is done */}
         {!isUser && !message.isStreaming && codeBlocks.length > 0 && (
@@ -344,6 +446,7 @@ export default function Assistant() {
   const [saveDialog, setSaveDialog] = useState<{ open: boolean; blocks: Array<{ language: string; code: string }> }>({ open: false, blocks: [] });
   const [activeSessionId, setActiveSessionId] = useState<number | null>(null);
   const [activeSessionName, setActiveSessionName] = useState("新会话");
+  const [sessionSearch, setSessionSearch] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const streamingMsgIdRef = useRef<string | null>(null);
   const utils = trpc.useUtils();
@@ -370,7 +473,7 @@ export default function Assistant() {
         m.id === msgId ? { ...m, content: fullContent, isStreaming: true } : m
       ));
     },
-    onDone: (fullContent, totalTokens) => {
+    onDone: (fullContent, totalTokens, durationMs) => {
       if (!streamingMsgIdRef.current) return;
       const msgId = streamingMsgIdRef.current;
       const codeBlocks = extractCodeBlocks(fullContent);
@@ -384,6 +487,8 @@ export default function Assistant() {
           ...m, content: fullContent, isStreaming: false,
           codeBlocks: codeBlocks.length > 0 ? codeBlocks : undefined,
           toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+          tokens: totalTokens,
+          durationMs,
         } : m
       ));
       streamingMsgIdRef.current = null;
@@ -516,16 +621,31 @@ export default function Assistant() {
     <div className="h-full flex overflow-hidden">
       {/* ─── Session Sidebar ─────────────────────────────────────────── */}
       <div className="w-60 shrink-0 border-r border-border bg-muted/20 flex flex-col">
-        <div className="p-3 border-b border-border">
+        <div className="p-3 border-b border-border space-y-2">
           <Button size="sm" className="w-full gap-1.5 bg-grad-purple border-0 shadow-sm" onClick={() => createNewSession()}>
             <Plus className="w-3.5 h-3.5" /> 新建会话
           </Button>
+          {/* Session search */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+            <Input
+              placeholder="搜索会话..."
+              value={sessionSearch}
+              onChange={e => setSessionSearch(e.target.value)}
+              className="pl-7 h-7 text-xs"
+            />
+            {sessionSearch && (
+              <button onClick={() => setSessionSearch("")} className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                <X className="w-3 h-3" />
+              </button>
+            )}
+          </div>
         </div>
 
         <ScrollArea className="flex-1">
           <div className="p-2 space-y-1">
             {/* Current session (unsaved) */}
-            {!activeSessionId && messages.length > 0 && (
+            {!activeSessionId && messages.length > 0 && !sessionSearch && (
               <div className="px-2.5 py-2 rounded-xl bg-primary text-white text-xs font-medium">
                 <p className="truncate">{activeSessionName}</p>
                 <p className="text-white/70 text-[10px]">{messages.length} 条消息 · 未保存</p>
@@ -535,8 +655,23 @@ export default function Assistant() {
             {/* DB sessions */}
             {(dbSessions as any[]).length > 0 && (
               <>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2 py-1">历史会话</p>
-                {(dbSessions as any[]).filter((s: any) => !s.archived).map((session: any) => {
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-2 py-1">
+                  {sessionSearch ? `搜索结果` : "历史会话"}
+                  {sessionSearch && (
+                    <span className="ml-1 text-primary normal-case font-normal">
+                      "{sessionSearch}"
+                    </span>
+                  )}
+                </p>
+                {(dbSessions as any[]).filter((s: any) => {
+                  if (s.archived) return false;
+                  if (!sessionSearch) return true;
+                  const q = sessionSearch.toLowerCase();
+                  // Match by name or message content
+                  if (s.name?.toLowerCase().includes(q)) return true;
+                  const msgs = s.messages ?? [];
+                  return msgs.some((m: any) => m.content?.toLowerCase().includes(q));
+                }).map((session: any) => {
                   const isActive = activeSessionId === session.id;
                   const msgCount = (session.messages ?? []).length;
                   return (

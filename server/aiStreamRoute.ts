@@ -99,6 +99,7 @@ export function registerAIStreamRoute(app: Express) {
       // Stream the response
       let fullContent = "";
       let charCount = 0;
+      const startTime = Date.now();
 
       for await (const chunk of invokeLLMStream({ messages: fullMessages, model: modelOverride })) {
         fullContent += chunk;
@@ -150,7 +151,8 @@ export function registerAIStreamRoute(app: Express) {
         }
       } catch {}
 
-      sendEvent({ type: "done", totalTokens: estimatedTokens, content: fullContent });
+      const durationMs = Date.now() - startTime;
+      sendEvent({ type: "done", totalTokens: estimatedTokens, content: fullContent, durationMs });
     } catch (err: any) {
       sendEvent({ type: "error", message: err.message ?? "AI 请求失败" });
     } finally {

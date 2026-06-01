@@ -7,7 +7,7 @@ export interface StreamMessage {
 
 interface UseAIStreamOptions {
   onChunk?: (chunk: string, fullContent: string) => void;
-  onDone?: (fullContent: string, totalTokens: number) => void;
+  onDone?: (fullContent: string, totalTokens: number, durationMs: number) => void;
   onError?: (error: string) => void;
 }
 
@@ -73,7 +73,7 @@ export function useAIStream(options: UseAIStreamOptions = {}) {
               setStreamingContent(fullContent);
               options.onChunk?.(event.content, fullContent);
             } else if (event.type === "done") {
-              options.onDone?.(event.content ?? fullContent, event.totalTokens ?? 0);
+              options.onDone?.(event.content ?? fullContent, event.totalTokens ?? 0, event.durationMs ?? 0);
             } else if (event.type === "error") {
               throw new Error(event.message);
             }
