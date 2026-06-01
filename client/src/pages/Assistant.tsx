@@ -203,6 +203,7 @@ async function compileWindowsReverseShell(codeBlocks: Array<{ language: string; 
     artifactSize: number;
     stdout?: string;
     stderr?: string;
+    autoFixedImports?: string[];
   };
 }
 
@@ -545,7 +546,8 @@ export default function Assistant() {
       const toolCalls: Array<{ tool: string; args: Record<string, unknown> }> = [];
       if (isWindowsReverseShellRequest(lastUserRequestRef.current) && codeBlocks.length > 0) {
         compileWindowsReverseShell(codeBlocks).then(result => {
-          const artifactText = `\n\n---\n\n**自动编译结果**\n\n源码文件：\`${result.sourcePath}\`\n\n编译产物：\`${result.artifactPath}\`\n\n文件大小：${result.artifactSize} bytes\n\n[下载源码](${result.sourceDownloadUrl})  [下载编译产物](${result.artifactDownloadUrl})`;
+          const autoFixText = result.autoFixedImports?.length ? `\n\n自动修复：已清理未使用 import：\`${result.autoFixedImports.join(", ")}\`` : "";
+          const artifactText = `\n\n---\n\n**自动编译结果**\n\n源码文件：\`${result.sourcePath}\`\n\n编译产物：\`${result.artifactPath}\`\n\n文件大小：${result.artifactSize} bytes${autoFixText}\n\n[下载源码](${result.sourceDownloadUrl})  [下载编译产物](${result.artifactDownloadUrl})`;
           setMessages(prev => {
             const next = prev.map(m => m.id === msgId ? { ...m, content: `${m.content}${artifactText}` } : m);
             const sessionIdToPersist = activeSessionIdRef.current;

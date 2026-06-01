@@ -104,6 +104,31 @@ function buildDownloadUrl(filePath: string) {
   return `/api/ai/download?path=${encodeURIComponent(filePath)}`;
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function extractUnusedGoImports(stderr: string) {
+  const imports = new Set<string>();
+  const regex = /"([^"]+)" imported and not used/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(stderr)) !== null) {
+    if (match[1]) imports.add(match[1]);
+  }
+  return Array.from(imports);
+}
+
+function removeUnusedGoImports(source: string, unusedImports: string[]) {
+  let next = source;
+  for (const importPath of unusedImports) {
+    const escaped = escapeRegExp(importPath);
+    next = next.replace(new RegExp(`^\\s*(?:[\\w.]+\\s+)?"${escaped}"(?:\\s*//.*)?\\r?\\n`, "gm"), "");
+    next = next.replace(new RegExp(`^\\s*import\\s+(?:[\\w.]+\\s+)?"${escaped}"(?:\\s*//.*)?\\r?\\n`, "gm"), "");
+  }
+  next = next.replace(/import\s*\(\s*\)\s*/g, "");
+  return next;
+}
+
 async function* streamDeepSeek(messages: ChatMessage[]): AsyncGenerator<string> {
   const apiKey = process.env.DEEPSEEK_API_KEY || readDotenvValue("DEEPSEEK_API_KEY");
   if (!apiKey) throw new Error("DeepSeek API Key 未配置，请在服务端环境变量 DEEPSEEK_API_KEY 中设置。 ");
@@ -226,35 +251,54 @@ export function registerAIStreamRoute(app: Express) {
       fs.mkdirSync(buildDir, { recursive: true });
       const sourcePath = path.join(buildDir, safeName.endsWith(".go") ? safeName : `${safeName}.go`);
       const artifactPath = path.join(buildDir, safeName.replace(/\.go$/i, ".exe"));
-      fs.writeFileSync(sourcePath, code, "utf8");
-
+      let buildCode = code;
       let stdout = "";
       let stderr = "";
-      try {
-        const goPath = process.env.GO_PATH || "go";
-        const result = await execFileAsync(goPath, ["build", "-trimpath", "-ldflags", "-s -w", "-o", artifactPath, sourcePath], {
-          env: { ...process.env, GOOS: "windows", GOARCH: "amd64", CGO_ENABLED: "0" },
-          timeout: 120000,
-          maxBuffer: 1024 * 1024 * 5,
-        });
-        stdout = result.stdout;
-        stderr = result.stderr;
-      } catch (err: any) {
-        stdout = err?.stdout ?? "";
-        stderr = err?.stderr ?? err?.message ?? "编译失败";
-        return res.status(500).json({ success: false, message: "Go 交叉编译失败", sourcePath, artifactPath, stdout, stderr });
+      const autoFixedImports: string[] = [];
+      const goPath = process.env.GO_PATH || "go";
+
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        fs.writeFileSync(sourcePath, buildCode, "utf8");
+        try {
+          const result = await execFileAsync(goPath, ["build", "-trimpath", "-ldflags", "-s -w", "-o", artifactPath, sourcePath], {
+            env: { ...process.env, GOOS: "windows", GOARCH: "amd64", CGO_ENABLED: "0" },
+            timeout: 120000,
+            maxBuffer: 1024 * 1024 * 5,
+          });
+          stdout = result.stdout;
+          stderr = result.stderr;
+          break;
+        } catch (err: any) {
+          stdout = err?.stdout ?? "";
+          stderr = err?.stderr ?? err?.message ?? "编译失败";
+          const unusedImports = extractUnusedGoImports(stderr);
+          if (unusedImports.length > 0) {
+            const nextCode = removeUnusedGoImports(buildCode, unusedImports);
+            if (nextCode !== buildCode) {
+              autoFixedImports.push(...unusedImports.filter(item => !autoFixedImports.includes(item)));
+              buildCode = nextCode;
+              continue;
+            }
+          }
+          return res.status(500).json({ success: false, message: "Go 交叉编译失败", sourcePath, artifactPath, stdout, stderr });
+        }
       }
 
-      const stat = fs.existsSync(artifactPath) ? fs.statSync(artifactPath) : null;
+      if (!fs.existsSync(artifactPath)) {
+        return res.status(500).json({ success: false, message: "Go 交叉编译失败", sourcePath, artifactPath, stdout, stderr: stderr || "编译结束但未生成 exe 文件" });
+      }
+
+      const stat = fs.statSync(artifactPath);
       res.json({
         success: true,
         sourcePath,
         artifactPath,
         sourceDownloadUrl: buildDownloadUrl(sourcePath),
         artifactDownloadUrl: buildDownloadUrl(artifactPath),
-        artifactSize: stat?.size ?? 0,
+        artifactSize: stat.size,
         stdout,
         stderr,
+        autoFixedImports,
       });
     } catch (err: any) {
       res.status(500).json({ success: false, message: err?.message ?? "自动编译失败" });
