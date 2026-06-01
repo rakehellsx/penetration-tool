@@ -4,6 +4,21 @@ import { getDb } from "../db";
 import { aiSessions, aiUsageStats, auditLogs } from "../../drizzle/schema";
 import { eq, desc } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
+import { systemSettings } from "../../drizzle/schema";
+import { eq as eqOp } from "drizzle-orm";
+
+async function getAiConfig(db: any) {
+  if (!db) return {};
+  try {
+    const settings = await db.select().from(systemSettings);
+    const get = (key: string) => settings.find((s: any) => s.key === key)?.value;
+    return {
+      model: get("ai.model") ?? undefined,
+      temperature: get("ai.temperature") ? parseFloat(get("ai.temperature")) : undefined,
+      maxTokens: get("ai.maxTokens") ? parseInt(get("ai.maxTokens")) : undefined,
+    };
+  } catch { return {}; }
+}
 
 async function updateAiStats(tokens: number, promptTokens: number, completionTokens: number) {
   const db = await getDb();
@@ -138,7 +153,11 @@ export const aiRouter = router({
 
       messages.push(...input.messages);
 
-      const response = await invokeLLM({ messages });
+      // Read AI config from system settings
+      const aiDb = await getDb();
+      const aiConfig = await getAiConfig(aiDb);
+
+      const response = await invokeLLM({ messages, ...(aiConfig.model ? { model: aiConfig.model } : {}) } as any);
       const content = response.choices[0]?.message?.content ?? "";
       const usage = (response as any).usage ?? {};
       const totalTokens = usage.total_tokens ?? 0;

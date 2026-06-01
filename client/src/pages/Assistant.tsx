@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { trpc } from "@/lib/trpc";
 import { useApp } from "@/contexts/AppContext";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { Streamdown } from "streamdown";
@@ -14,46 +17,45 @@ import {
   Bot, Send, Plus, Archive, Trash2, MessageSquare, Code2,
   Shield, FileText, Zap, Search, Hammer, Package, RefreshCw,
   ChevronRight, Download, Copy, X, Sparkles, AlertTriangle,
-  BookOpen, Terminal, Target, Crosshair, Radio, Lock,
-  TrendingUp, Clock, Hash, Cpu, Globe, Activity, Star,
-  MoreHorizontal, Edit3, Check, ChevronDown, Layers,
-  ExternalLink, GitBranch, Eye, Settings
+  Terminal, TrendingUp, Clock, Star, Edit3, Check, Layers,
+  FolderOpen, Save, FileCode, Settings, Eye, Globe
 } from "lucide-react";
-import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuTrigger
-} from "@/components/ui/dropdown-menu";
 
 type ChatMode = "chat" | "code_gen" | "audit" | "exploit" | "report";
 
 const MODE_CONFIG: Record<ChatMode, {
   label: string; icon: React.ElementType; color: string; bg: string;
-  placeholder: string; description: string;
+  placeholder: string; description: string; systemPrompt: string;
 }> = {
   chat: {
     label: "通用对话", icon: MessageSquare, color: "text-blue-600", bg: "bg-blue-50 border-blue-200",
-    placeholder: "询问任何渗透测试相关问题，如：如何绕过 Windows Defender...",
-    description: "通用安全咨询与技术交流"
+    placeholder: "询问任何渗透测试相关问题...",
+    description: "通用安全咨询与技术交流",
+    systemPrompt: "你是一个专业的红队/渗透测试AI助手。你具备深厚的安全知识，能够帮助安全研究人员进行合法的渗透测试工作。请用中文回复，代码部分保持原语言。",
   },
   code_gen: {
     label: "代码生成", icon: Code2, color: "text-green-600", bg: "bg-green-50 border-green-200",
     placeholder: "描述需要生成的代码，如：生成一个 Windows x64 反射 DLL 注入载荷...",
-    description: "AI 辅助生成渗透测试代码"
+    description: "AI 辅助生成渗透测试代码",
+    systemPrompt: "你是一个专业的安全代码生成助手。根据用户描述生成高质量的渗透测试代码，包括漏洞利用代码、载荷代码等。请提供完整代码，用中文解释，代码用英文注释。生成的代码请用markdown代码块包裹，并标注语言类型。",
   },
   audit: {
     label: "代码审计", icon: Shield, color: "text-red-600", bg: "bg-red-50 border-red-200",
     placeholder: "粘贴需要审计的代码，AI 将分析安全漏洞和可利用点...",
-    description: "自动化代码安全审计分析"
+    description: "自动化代码安全审计分析",
+    systemPrompt: "你是一个代码安全审计专家。分析提供的代码，找出安全漏洞、可利用点和潜在风险。提供详细的漏洞描述、影响分析和利用思路。用中文回复，代码示例用英文。",
   },
   exploit: {
     label: "漏洞利用", icon: AlertTriangle, color: "text-orange-600", bg: "bg-orange-50 border-orange-200",
     placeholder: "输入 CVE 编号或漏洞描述，如：CVE-2021-44228 Log4Shell...",
-    description: "漏洞利用代码生成与分析"
+    description: "漏洞利用代码生成与分析",
+    systemPrompt: "你是一个漏洞利用代码生成专家。生成的代码仅用于合法的安全研究和渗透测试。根据CVE编号或漏洞描述生成利用代码，提供详细注释和使用说明。用中文解释，代码用英文。",
   },
   report: {
     label: "报告生成", icon: FileText, color: "text-purple-600", bg: "bg-purple-50 border-purple-200",
     placeholder: "描述渗透测试过程，AI 将生成专业的渗透测试报告草稿...",
-    description: "自动生成渗透测试报告"
+    description: "自动生成渗透测试报告",
+    systemPrompt: "你是一个渗透测试报告撰写专家。将测试过程和发现整理为专业的渗透测试报告草稿，包括执行摘要、技术细节、风险评级（严重/高/中/低）和修复建议。用中文回复，格式规范。",
   },
 };
 
@@ -65,12 +67,12 @@ const AI_TOOLS = [
 ];
 
 const QUICK_PROMPTS = [
-  { label: "Windows 反弹 Shell", mode: "code_gen" as ChatMode, icon: Terminal, color: "text-blue-600", prompt: "生成一个 Windows x64 反弹 Shell，使用 HTTP 协议，包含 AES-256 加密和字符串混淆，目标是绕过主流杀软检测" },
+  { label: "Windows 反弹 Shell", mode: "code_gen" as ChatMode, icon: Terminal, color: "text-blue-600", prompt: "生成一个 Windows x64 反弹 Shell，使用 HTTP 协议，包含 AES-256 加密和字符串混淆，目标是绕过主流杀软检测。请提供完整的 Go 语言代码。" },
   { label: "Log4Shell 利用", mode: "exploit" as ChatMode, icon: AlertTriangle, color: "text-orange-600", prompt: "CVE-2021-44228 Log4Shell 漏洞，请提供详细的利用思路、PoC 代码和检测绕过方法" },
   { label: "代码审计示例", mode: "audit" as ChatMode, icon: Shield, color: "text-red-600", prompt: "请对以下代码进行安全审计，找出所有可利用的安全漏洞和潜在风险点" },
   { label: "渗透测试报告", mode: "report" as ChatMode, icon: FileText, color: "text-purple-600", prompt: "请根据以下渗透测试过程生成一份专业的安全评估报告，包含执行摘要、技术细节和修复建议" },
-  { label: "提权技术分析", mode: "chat" as ChatMode, icon: TrendingUp, color: "text-green-600", prompt: "分析 Windows 系统中常见的本地提权技术，包括令牌模拟、SeImpersonatePrivilege 滥用等" },
-  { label: "横向移动方法", mode: "chat" as ChatMode, icon: ChevronRight, color: "text-indigo-600", prompt: "介绍 Active Directory 环境中的横向移动技术，包括 Pass-the-Hash、Pass-the-Ticket 等" },
+  { label: "提权技术分析", mode: "chat" as ChatMode, icon: TrendingUp, color: "text-green-600", prompt: "分析 Windows 系统中常见的本地提权技术，包括令牌模拟、SeImpersonatePrivilege 滥用等，并提供示例代码" },
+  { label: "横向移动方法", mode: "chat" as ChatMode, icon: ChevronRight, color: "text-indigo-600", prompt: "介绍 Active Directory 环境中的横向移动技术，包括 Pass-the-Hash、Pass-the-Ticket 等，提供 Python 实现示例" },
 ];
 
 interface Message {
@@ -79,6 +81,7 @@ interface Message {
   content: string;
   timestamp: number;
   mode?: ChatMode;
+  codeBlocks?: Array<{ language: string; code: string; filename?: string }>;
   toolCalls?: Array<{ tool: string; args: Record<string, unknown> }>;
 }
 
@@ -90,22 +93,230 @@ interface Session {
   mode: ChatMode;
 }
 
-function ToolCallCard({ toolId, onExecute }: { toolId: string; onExecute: (id: string) => void }) {
-  const tool = AI_TOOLS.find(t => t.id === toolId);
-  if (!tool) return null;
+// ─── Extract code blocks from markdown ────────────────────────────────────
+function extractCodeBlocks(content: string): Array<{ language: string; code: string; filename?: string }> {
+  const blocks: Array<{ language: string; code: string; filename?: string }> = [];
+  const regex = /```(\w+)?\n([\s\S]*?)```/g;
+  let match;
+  while ((match = regex.exec(content)) !== null) {
+    const language = match[1] ?? "text";
+    const code = match[2].trim();
+    if (code.length > 20) {
+      blocks.push({ language, code });
+    }
+  }
+  return blocks;
+}
+
+// ─── Save Code to Project Dialog ──────────────────────────────────────────
+function SaveToProjectDialog({ open, onClose, codeBlocks, sessionName }: {
+  open: boolean; onClose: () => void;
+  codeBlocks: Array<{ language: string; code: string; filename?: string }>;
+  sessionName: string;
+}) {
+  const [mode, setMode] = useState<"existing" | "new">("new");
+  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [newProject, setNewProject] = useState({ name: "", platform: "windows", language: "go", description: "" });
+  const [selectedBlocks, setSelectedBlocks] = useState<number[]>(codeBlocks.map((_, i) => i));
+  const [fileNames, setFileNames] = useState<Record<number, string>>(
+    Object.fromEntries(codeBlocks.map((b, i) => [i, `${sessionName.replace(/\s+/g, "_")}_${i + 1}.${b.language === "powershell" ? "ps1" : b.language === "python" ? "py" : b.language === "go" ? "go" : b.language === "c" || b.language === "cpp" ? (b.language === "cpp" ? "cpp" : "c") : b.language}`]))
+  );
+
+  const utils = trpc.useUtils();
+  const createProjectMutation = trpc.projects.create.useMutation({
+    onSuccess: async (data) => {
+      utils.projects.list.invalidate();
+      await saveFiles(data.id);
+    },
+    onError: (e) => toast.error(`创建项目失败: ${e.message}`),
+  });
+  const saveFileMutation = trpc.projects.saveFile.useMutation();
+
+  const { data: projects = [] } = trpc.projects.list.useQuery({});
+
+  const saveFiles = async (projectId: number) => {
+    const blocksToSave = selectedBlocks.map(i => ({ ...codeBlocks[i], filename: fileNames[i] }));
+    let saved = 0;
+    for (const block of blocksToSave) {
+      try {
+        await saveFileMutation.mutateAsync({
+          projectId,
+          name: block.filename ?? `code.${block.language}`,
+          path: `/${block.filename ?? `code_${saved + 1}.${block.language}`}`,
+          content: block.code,
+          language: block.language,
+        });
+        saved++;
+      } catch (e) {}
+    }
+    toast.success(`已保存 ${saved} 个文件到项目`);
+    onClose();
+  };
+
+  const handleSave = async () => {
+    if (mode === "existing") {
+      if (!selectedProjectId) { toast.warning("请选择目标项目"); return; }
+      await saveFiles(parseInt(selectedProjectId));
+    } else {
+      if (!newProject.name) { toast.warning("请填写项目名称"); return; }
+      createProjectMutation.mutate({
+        name: newProject.name,
+        description: newProject.description || undefined,
+        platform: newProject.platform,
+        language: newProject.language,
+      });
+    }
+  };
+
+  const toggleBlock = (i: number) => {
+    setSelectedBlocks(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]);
+  };
+
   return (
-    <button
-      onClick={() => onExecute(toolId)}
-      className={cn("flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all hover:shadow-sm", tool.color)}
-    >
-      <tool.icon className="w-3.5 h-3.5" />
-      {tool.label}
-      <ChevronRight className="w-3 h-3 ml-0.5" />
-    </button>
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <div className="w-7 h-7 rounded-lg bg-grad-primary flex items-center justify-center">
+              <Save className="w-3.5 h-3.5 text-white" />
+            </div>
+            保存代码到项目
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Target project selection */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setMode("new")}
+              className={cn("flex-1 flex items-center gap-2 p-3 rounded-xl border-2 transition-all text-sm font-medium",
+                mode === "new" ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-primary/30"
+              )}
+            >
+              <Plus className="w-4 h-4" /> 新建项目并保存
+            </button>
+            <button
+              onClick={() => setMode("existing")}
+              className={cn("flex-1 flex items-center gap-2 p-3 rounded-xl border-2 transition-all text-sm font-medium",
+                mode === "existing" ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-primary/30"
+              )}
+            >
+              <FolderOpen className="w-4 h-4" /> 保存到已有项目
+            </button>
+          </div>
+
+          {/* New project form */}
+          {mode === "new" && (
+            <div className="space-y-3 p-3 rounded-xl bg-muted/30 border border-border">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">项目名称 *</Label>
+                <Input value={newProject.name} onChange={e => setNewProject(p => ({ ...p, name: e.target.value }))} placeholder="e.g. AI-Generated-Payload" className="font-mono" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">目标平台</Label>
+                  <Select value={newProject.platform} onValueChange={v => setNewProject(p => ({ ...p, platform: v }))}>
+                    <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {[["windows","Windows"],["linux","Linux"],["macos","macOS"],["cross","跨平台"]].map(([v,l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">编程语言</Label>
+                  <Select value={newProject.language} onValueChange={v => setNewProject(p => ({ ...p, language: v }))}>
+                    <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {["go","c","cpp","python","rust","powershell"].map(l => <SelectItem key={l} value={l}><span className="font-mono">{l}</span></SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">项目描述</Label>
+                <Textarea value={newProject.description} onChange={e => setNewProject(p => ({ ...p, description: e.target.value }))} placeholder="AI 生成的渗透测试代码项目..." className="resize-none text-sm" rows={2} />
+              </div>
+            </div>
+          )}
+
+          {/* Existing project selection */}
+          {mode === "existing" && (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold">选择目标项目</Label>
+              <Select value={selectedProjectId} onValueChange={setSelectedProjectId}>
+                <SelectTrigger><SelectValue placeholder="选择项目..." /></SelectTrigger>
+                <SelectContent>
+                  {(projects as any[]).map((p: any) => (
+                    <SelectItem key={p.id} value={String(p.id)}>
+                      <div className="flex items-center gap-2">
+                        <FolderOpen className="w-3.5 h-3.5 text-indigo-500" />
+                        <span className="font-mono">{p.name}</span>
+                        <span className="text-muted-foreground text-xs">· {p.platform} · {p.language}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {/* Code blocks to save */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold">选择要保存的代码文件</Label>
+              <span className="text-xs text-muted-foreground">{selectedBlocks.length}/{codeBlocks.length} 已选</span>
+            </div>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {codeBlocks.map((block, i) => (
+                <div key={i} className={cn("flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer",
+                  selectedBlocks.includes(i) ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"
+                )} onClick={() => toggleBlock(i)}>
+                  <div className={cn("w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5 border-2 transition-all",
+                    selectedBlocks.includes(i) ? "bg-primary border-primary" : "border-border"
+                  )}>
+                    {selectedBlocks.includes(i) && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <FileCode className="w-3.5 h-3.5 text-blue-500 shrink-0" />
+                      <Input
+                        value={fileNames[i] ?? `code_${i + 1}.${block.language}`}
+                        onChange={e => { e.stopPropagation(); setFileNames(prev => ({ ...prev, [i]: e.target.value })); }}
+                        onClick={e => e.stopPropagation()}
+                        className="h-6 text-xs font-mono flex-1 px-2"
+                      />
+                      <Badge variant="outline" className="text-[10px] font-mono shrink-0">{block.language}</Badge>
+                    </div>
+                    <pre className="text-[10px] text-muted-foreground bg-muted/50 rounded p-1.5 max-h-16 overflow-hidden leading-4">
+                      {block.code.slice(0, 120)}...
+                    </pre>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={onClose}>取消</Button>
+          <Button size="sm" className="bg-grad-primary border-0 gap-1.5"
+            disabled={selectedBlocks.length === 0 || createProjectMutation.isPending || saveFileMutation.isPending}
+            onClick={handleSave}>
+            <Save className="w-3.5 h-3.5" />
+            {createProjectMutation.isPending || saveFileMutation.isPending ? "保存中..." : `保存 ${selectedBlocks.length} 个文件`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-function MessageBubble({ message, onToolExecute }: { message: Message; onToolExecute: (id: string) => void }) {
+// ─── Message Bubble ────────────────────────────────────────────────────────
+function MessageBubble({ message, onSaveCode, onToolExecute }: {
+  message: Message;
+  onSaveCode: (blocks: Array<{ language: string; code: string }>) => void;
+  onToolExecute: (id: string) => void;
+}) {
   const isUser = message.role === "user";
   const modeConf = message.mode ? MODE_CONFIG[message.mode] : null;
   const ModeIcon = modeConf?.icon ?? Bot;
@@ -117,28 +328,22 @@ function MessageBubble({ message, onToolExecute }: { message: Message; onToolExe
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const codeBlocks = message.codeBlocks ?? [];
+
   return (
     <div className={cn("flex gap-3 group animate-fade-in-up", isUser && "flex-row-reverse")}>
-      {/* Avatar */}
       <div className={cn(
         "w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5 shadow-sm",
         isUser ? "bg-grad-primary text-white" : "bg-gradient-to-br from-purple-500 to-indigo-600 text-white"
       )}>
-        {isUser ? (
-          <span className="text-xs font-bold">U</span>
-        ) : (
-          <Bot className="w-4 h-4" />
-        )}
+        {isUser ? <span className="text-xs font-bold">U</span> : <Bot className="w-4 h-4" />}
       </div>
 
-      {/* Content */}
-      <div className={cn("flex-1 max-w-[85%]", isUser && "items-end flex flex-col")}>
-        {/* Mode badge for assistant */}
+      <div className={cn("flex-1 max-w-[88%]", isUser && "items-end flex flex-col")}>
         {!isUser && modeConf && (
           <div className="flex items-center gap-1.5 mb-1.5">
             <span className={cn("flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full border", modeConf.bg, modeConf.color)}>
-              <ModeIcon className="w-3 h-3" />
-              {modeConf.label}
+              <ModeIcon className="w-3 h-3" />{modeConf.label}
             </span>
             <span className="text-[10px] text-muted-foreground">{new Date(message.timestamp).toLocaleTimeString()}</span>
           </div>
@@ -146,36 +351,50 @@ function MessageBubble({ message, onToolExecute }: { message: Message; onToolExe
 
         <div className={cn(
           "relative rounded-2xl px-4 py-3 text-sm shadow-sm",
-          isUser
-            ? "bg-grad-primary text-white rounded-tr-sm"
-            : "bg-white border border-border rounded-tl-sm"
+          isUser ? "bg-grad-primary text-white rounded-tr-sm" : "bg-white border border-border rounded-tl-sm"
         )}>
           {isUser ? (
             <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
           ) : (
-            <div className="prose prose-sm max-w-none [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_pre]:bg-[var(--editor-bg)] [&_pre]:text-[var(--editor-fg)] [&_pre]:rounded-xl [&_pre]:p-4">
+            <div className="prose prose-sm max-w-none [&_pre]:bg-[var(--editor-bg)] [&_pre]:text-[var(--editor-fg)] [&_pre]:rounded-xl [&_pre]:p-4 [&_pre]:overflow-x-auto [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono">
               <Streamdown>{message.content}</Streamdown>
             </div>
           )}
-
-          {/* Copy button */}
           {!isUser && (
-            <button
-              onClick={handleCopy}
-              className="absolute top-2 right-2 w-6 h-6 rounded-md bg-muted/60 hover:bg-muted flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-            >
+            <button onClick={handleCopy} className="absolute top-2 right-2 w-6 h-6 rounded-md bg-muted/60 hover:bg-muted flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
               {copied ? <Check className="w-3 h-3 text-green-500" /> : <Copy className="w-3 h-3 text-muted-foreground" />}
             </button>
           )}
         </div>
 
+        {/* Code save button */}
+        {!isUser && codeBlocks.length > 0 && (
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              onClick={() => onSaveCode(codeBlocks)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-medium hover:bg-indigo-100 transition-colors"
+            >
+              <Save className="w-3.5 h-3.5" />
+              保存代码到项目
+              <Badge className="text-[9px] h-4 px-1 bg-indigo-200 text-indigo-800 ml-1">{codeBlocks.length} 个文件</Badge>
+            </button>
+          </div>
+        )}
+
         {/* Tool calls */}
         {message.toolCalls && message.toolCalls.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             <span className="text-[10px] text-muted-foreground self-center">AI 建议操作:</span>
-            {message.toolCalls.map((tc, i) => (
-              <ToolCallCard key={i} toolId={tc.tool} onExecute={onToolExecute} />
-            ))}
+            {message.toolCalls.map((tc, i) => {
+              const tool = AI_TOOLS.find(t => t.id === tc.tool);
+              if (!tool) return null;
+              return (
+                <button key={i} onClick={() => onToolExecute(tc.tool)}
+                  className={cn("flex items-center gap-1 px-2.5 py-1 rounded-lg border text-xs font-medium transition-all hover:shadow-sm", tool.color)}>
+                  <tool.icon className="w-3.5 h-3.5" />{tool.label}<ChevronRight className="w-3 h-3 ml-0.5" />
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -189,6 +408,7 @@ function MessageBubble({ message, onToolExecute }: { message: Message; onToolExe
   );
 }
 
+// ─── Main Component ────────────────────────────────────────────────────────
 export default function Assistant() {
   const { assistantContext, dispatchAction, pendingAction, clearAction } = useApp();
   const [sessions, setSessions] = useState<Session[]>([
@@ -202,13 +422,22 @@ export default function Assistant() {
   const [isLoading, setIsLoading] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState("");
+  const [saveDialog, setSaveDialog] = useState<{ open: boolean; blocks: Array<{ language: string; code: string }> }>({ open: false, blocks: [] });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const activeSession = sessions.find(s => s.id === activeSessionId);
 
+  // Get AI settings from system settings
+  const { data: aiSettings = [] } = trpc.settings.getAll.useQuery();
+  const getAiSetting = (key: string, defaultVal: string) => {
+    const s = (aiSettings as any[]).find((s: any) => s.key === key);
+    return s?.value ?? defaultVal;
+  };
+
   const chatMutation = trpc.ai.chat.useMutation({
     onSuccess: (data) => {
       const contentStr = typeof data.content === "string" ? data.content : String(data.content ?? "");
+      const codeBlocks = extractCodeBlocks(contentStr);
       const toolCalls: Array<{ tool: string; args: Record<string, unknown> }> = [];
       if (contentStr.includes("新建载荷") || contentStr.includes("生成载荷")) toolCalls.push({ tool: "create_payload", args: {} });
       if (contentStr.includes("搜索模板") || contentStr.includes("模板库")) toolCalls.push({ tool: "search_templates", args: {} });
@@ -220,18 +449,30 @@ export default function Assistant() {
         content: contentStr,
         timestamp: Date.now(),
         mode,
+        codeBlocks: codeBlocks.length > 0 ? codeBlocks : undefined,
         toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
       };
       setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [...s.messages, assistantMsg] } : s));
       setIsLoading(false);
     },
-    onError: (e) => { toast.error(`AI 请求失败: ${e.message}`); setIsLoading(false); },
+    onError: (e) => {
+      toast.error(`AI 请求失败: ${e.message}`);
+      const errMsg: Message = {
+        id: `msg-${Date.now()}`,
+        role: "assistant",
+        content: `❌ AI 请求失败: ${e.message}\n\n请检查系统设置中的 AI 配置（API Key 和 Base URL）是否正确。`,
+        timestamp: Date.now(),
+        mode,
+      };
+      setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [...s.messages, errMsg] } : s));
+      setIsLoading(false);
+    },
   });
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [activeSession?.messages]);
   useEffect(() => {
     if (assistantContext.fileContent && assistantContext.fileName) {
-      setInput(`请分析以下文件 "${assistantContext.fileName}" 的代码：\n\n\`\`\`\n${assistantContext.fileContent.slice(0, 500)}...\n\`\`\``);
+      setInput(`请分析以下文件 "${assistantContext.fileName}" 的代码：\n\n\`\`\`\n${assistantContext.fileContent.slice(0, 800)}\n\`\`\``);
       setMode("audit");
     }
   }, [assistantContext]);
@@ -240,13 +481,24 @@ export default function Assistant() {
     if (!input.trim() || isLoading) return;
     const userMsg: Message = { id: `msg-${Date.now()}`, role: "user", content: input, timestamp: Date.now(), mode };
     setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [...s.messages, userMsg] } : s));
-    const messages: Array<{role: "user" | "assistant" | "system"; content: string}> = [
+
+    const messages: Array<{ role: "user" | "assistant" | "system"; content: string }> = [
       ...(activeSession?.messages ?? []).map(m => ({ role: m.role as "user" | "assistant", content: m.content })),
       { role: "user" as const, content: input },
     ];
+
     setIsLoading(true);
     setInput("");
-    chatMutation.mutate({ messages, mode, contextCode: assistantContext.fileContent, contextProject: assistantContext.projectId ? `Project ID: ${assistantContext.projectId}` : undefined });
+
+    // Use system prompt from mode config, inject context
+    const systemPrompt = MODE_CONFIG[mode].systemPrompt;
+    chatMutation.mutate({
+      messages,
+      mode,
+      systemPrompt,
+      contextCode: assistantContext.fileContent,
+      contextProject: assistantContext.projectId ? `当前项目 ID: ${assistantContext.projectId}` : undefined,
+    });
   };
 
   const handleToolAction = (toolId: string) => {
@@ -262,6 +514,7 @@ export default function Assistant() {
     const newId = Math.max(...sessions.map(s => s.id), 0) + 1;
     setSessions(prev => [...prev, { id: newId, name: `会话 ${newId}`, archived: false, messages: [], mode: "chat" }]);
     setActiveSessionId(newId);
+    setMode("chat");
   };
 
   const exportSession = () => {
@@ -271,8 +524,7 @@ export default function Assistant() {
     ).join("\n");
     const blob = new Blob([md], { type: "text/markdown" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `${activeSession.name}.md`; a.click();
+    const a = document.createElement("a"); a.href = url; a.download = `${activeSession.name}.md`; a.click();
     toast.success("对话已导出为 Markdown");
   };
 
@@ -280,6 +532,11 @@ export default function Assistant() {
     setSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, messages: [] } : s));
     toast.success("会话已清空");
   };
+
+  // Collect all code blocks from current session
+  const allCodeBlocks = (activeSession?.messages ?? [])
+    .filter(m => m.role === "assistant" && m.codeBlocks && m.codeBlocks.length > 0)
+    .flatMap(m => m.codeBlocks ?? []);
 
   return (
     <div className="h-full flex overflow-hidden">
@@ -298,15 +555,12 @@ export default function Assistant() {
               const mConf = MODE_CONFIG[session.mode];
               const MIcon = mConf?.icon ?? MessageSquare;
               return (
-                <button key={session.id} onClick={() => setActiveSessionId(session.id)}
-                  className={cn(
-                    "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-left transition-all group",
-                    activeSessionId === session.id
-                      ? "bg-primary text-white shadow-sm"
-                      : "text-foreground hover:bg-muted"
+                <button key={session.id} onClick={() => { setActiveSessionId(session.id); setMode(session.mode); }}
+                  className={cn("w-full flex items-center gap-2.5 px-2.5 py-2 rounded-xl text-sm text-left transition-all group",
+                    activeSessionId === session.id ? "bg-primary text-white shadow-sm" : "text-foreground hover:bg-muted"
                   )}>
                   <div className={cn("w-6 h-6 rounded-lg flex items-center justify-center shrink-0",
-                    activeSessionId === session.id ? "bg-white/20" : cn(mConf?.bg)
+                    activeSessionId === session.id ? "bg-white/20" : mConf?.bg
                   )}>
                     <MIcon className={cn("w-3.5 h-3.5", activeSessionId === session.id ? "text-white" : mConf?.color)} />
                   </div>
@@ -343,7 +597,7 @@ export default function Assistant() {
 
       {/* ─── Chat Area ───────────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Chat Header */}
+        {/* Header */}
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-border bg-white shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-sm">
@@ -367,6 +621,13 @@ export default function Assistant() {
             )}
           </div>
           <div className="flex items-center gap-1">
+            {allCodeBlocks.length > 0 && (
+              <Button variant="outline" size="sm" className="h-7 text-xs gap-1.5 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                onClick={() => setSaveDialog({ open: true, blocks: allCodeBlocks })}>
+                <Save className="w-3 h-3" />
+                保存代码 ({allCodeBlocks.length})
+              </Button>
+            )}
             <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={clearSession}>
               <X className="w-3 h-3" /> 清空
             </Button>
@@ -384,15 +645,17 @@ export default function Assistant() {
               <button key={key} onClick={() => setMode(key)}
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap border",
-                  mode === key ? cn("text-white border-transparent shadow-sm", key === "chat" ? "bg-blue-500" : key === "code_gen" ? "bg-green-500" : key === "audit" ? "bg-red-500" : key === "exploit" ? "bg-orange-500" : "bg-purple-500") : "bg-white border-border text-muted-foreground hover:text-foreground hover:border-primary/30"
+                  mode === key
+                    ? cn("text-white border-transparent shadow-sm", key === "chat" ? "bg-blue-500" : key === "code_gen" ? "bg-green-500" : key === "audit" ? "bg-red-500" : key === "exploit" ? "bg-orange-500" : "bg-purple-500")
+                    : "bg-white border-border text-muted-foreground hover:text-foreground hover:border-primary/30"
                 )}>
-                <Icon className="w-3 h-3" />
-                {config.label}
+                <Icon className="w-3 h-3" />{config.label}
               </button>
             );
           })}
-          <div className="ml-auto shrink-0 text-[10px] text-muted-foreground hidden md:block">
-            {MODE_CONFIG[mode].description}
+          <div className="ml-auto shrink-0 text-[10px] text-muted-foreground hidden md:flex items-center gap-1">
+            <Settings className="w-3 h-3" />
+            <span>AI 配置已打通系统设置</span>
           </div>
         </div>
 
@@ -403,9 +666,13 @@ export default function Assistant() {
               <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center mb-5 shadow-xl shadow-purple-900/20">
                 <Sparkles className="w-10 h-10 text-white" />
               </div>
-              <h3 className="text-lg font-bold text-foreground mb-1">RedTeam AI 助手</h3>
-              <p className="text-sm text-muted-foreground mb-6 max-w-sm">
+              <h3 className="text-lg font-bold text-foreground mb-1">渗透测试 AI 助手</h3>
+              <p className="text-sm text-muted-foreground mb-2 max-w-sm">
                 专业的红队/渗透测试 AI 助手，支持代码生成、漏洞利用分析、代码审计和报告生成
+              </p>
+              <p className="text-xs text-muted-foreground mb-6 flex items-center gap-1">
+                <Settings className="w-3 h-3" />
+                AI 模型配置可在「系统设置 → AI 配置」中修改
               </p>
               <div className="grid grid-cols-2 gap-2 w-full max-w-lg">
                 {QUICK_PROMPTS.map((qp, i) => (
@@ -425,7 +692,12 @@ export default function Assistant() {
           ) : (
             <div className="space-y-5 max-w-3xl mx-auto">
               {activeSession.messages.map(msg => (
-                <MessageBubble key={msg.id} message={msg} onToolExecute={handleToolAction} />
+                <MessageBubble
+                  key={msg.id}
+                  message={msg}
+                  onSaveCode={(blocks) => setSaveDialog({ open: true, blocks })}
+                  onToolExecute={handleToolAction}
+                />
               ))}
               {isLoading && (
                 <div className="flex gap-3 animate-fade-in">
@@ -447,21 +719,22 @@ export default function Assistant() {
           )}
         </ScrollArea>
 
-        {/* Input Area */}
+        {/* Input */}
         <div className="p-4 border-t border-border bg-white/95 shrink-0">
           <div className="max-w-3xl mx-auto">
             <div className="flex items-end gap-2 bg-muted/30 rounded-2xl border border-border p-2 focus-within:border-primary/40 focus-within:shadow-sm transition-all">
-              <Textarea value={input} onChange={e => setInput(e.target.value)}
+              <Textarea
+                value={input}
+                onChange={e => setInput(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                 placeholder={MODE_CONFIG[mode].placeholder}
                 className="flex-1 min-h-[60px] max-h-[200px] resize-none border-0 bg-transparent focus-visible:ring-0 text-sm p-1 leading-relaxed"
-                rows={2} />
-              <div className="flex flex-col gap-1.5">
-                <Button size="icon" className={cn("w-9 h-9 rounded-xl shadow-sm", isLoading ? "bg-muted" : "bg-grad-primary border-0")}
-                  disabled={!input.trim() || isLoading} onClick={handleSend}>
-                  {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                </Button>
-              </div>
+                rows={2}
+              />
+              <Button size="icon" className={cn("w-9 h-9 rounded-xl shadow-sm", isLoading ? "bg-muted" : "bg-grad-primary border-0")}
+                disabled={!input.trim() || isLoading} onClick={handleSend}>
+                {isLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              </Button>
             </div>
             <div className="flex items-center justify-between mt-1.5 px-1">
               <p className="text-[10px] text-muted-foreground">
@@ -475,6 +748,16 @@ export default function Assistant() {
           </div>
         </div>
       </div>
+
+      {/* Save to Project Dialog */}
+      {saveDialog.open && (
+        <SaveToProjectDialog
+          open={saveDialog.open}
+          onClose={() => setSaveDialog({ open: false, blocks: [] })}
+          codeBlocks={saveDialog.blocks}
+          sessionName={activeSession?.name ?? "AI生成代码"}
+        />
+      )}
     </div>
   );
 }
