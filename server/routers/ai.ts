@@ -167,10 +167,9 @@ export const aiRouter = router({
       await updateAiStats(totalTokens, promptTokens, completionTokens);
 
       // Audit log
-      const db = await getDb();
-      if (db) {
+      if (aiDb) {
         const ownerId = (ctx.user as any)?.id ?? 1;
-        await db.insert(auditLogs).values({
+        await aiDb.insert(auditLogs).values({
           userId: ownerId,
           userName: (ctx.user as any)?.name ?? "Unknown",
           action: "ai_generate",
