@@ -282,7 +282,7 @@ function MessageBubble({ message, onSaveCode, onToolExecute }: {
           {isUser ? (
             <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
           ) : (
-            <div className="prose prose-sm max-w-none [&_pre]:bg-[var(--editor-bg)] [&_pre]:text-[var(--editor-fg)] [&_pre]:rounded-xl [&_pre]:p-4 [&_pre]:overflow-x-auto [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono">
+            <div className="prose prose-sm max-w-none [&_pre]:bg-[var(--editor-bg)] [&_pre]:text-[var(--editor-fg)] [&_pre]:rounded-xl [&_pre]:p-4 [&_pre]:overflow-x-auto [&_pre]:max-h-96 [&_pre]:overflow-y-auto [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs [&_code]:font-mono">
               <Streamdown>{message.content}</Streamdown>
               {message.isStreaming && (
                 <span className="inline-block w-0.5 h-4 bg-purple-500 animate-pulse ml-0.5 align-middle" />
@@ -683,11 +683,20 @@ export default function Assistant() {
             <div className="flex items-end gap-2 bg-muted/30 rounded-2xl border border-border p-2 focus-within:border-primary/40 focus-within:shadow-sm transition-all">
               <Textarea
                 value={input}
-                onChange={e => setInput(e.target.value)}
+                onChange={e => {
+                  setInput(e.target.value);
+                  // Auto-resize: reset then set to scrollHeight
+                  const el = e.target as HTMLTextAreaElement;
+                  el.style.height = "auto";
+                  const lineHeight = 22;
+                  const maxHeight = lineHeight * 5 + 16; // 5 lines + padding
+                  el.style.height = Math.min(el.scrollHeight, maxHeight) + "px";
+                }}
                 onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
                 placeholder={MODE_CONFIG[mode].placeholder}
-                className="flex-1 min-h-[60px] max-h-[200px] resize-none border-0 bg-transparent focus-visible:ring-0 text-sm p-1 leading-relaxed"
-                rows={2}
+                className="flex-1 min-h-[60px] max-h-[130px] resize-none border-0 bg-transparent focus-visible:ring-0 text-sm p-1 leading-relaxed overflow-y-auto"
+                rows={1}
+                style={{ height: "60px" }}
                 disabled={isStreaming}
               />
               <Button size="icon" className={cn("w-9 h-9 rounded-xl shadow-sm", isStreaming ? "bg-red-500 hover:bg-red-600 border-0" : "bg-grad-primary border-0")}
