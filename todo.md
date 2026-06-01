@@ -1,0 +1,76 @@
+# PenTest Dev Platform - TODO
+
+## Phase 1: 基础架构
+- [x] 数据库 Schema 设计（projects/payloads/templates/builds/sessions/audit_logs）
+- [x] 全局样式与色彩体系（白色背景，深色代码区对比）
+- [x] DashboardLayout 侧边栏导航（8个模块）
+- [x] 路由注册（App.tsx）
+- [x] 全局状态管理（跨模块联动 Context）
+
+## Phase 2: 统计概览 & 项目管理
+- [x] 统计卡片（项目总数/活跃/构建成功率）
+- [x] 载荷库分类统计图表（Recharts BarChart/PieChart）
+- [x] AI 调用次数与 Token 消耗趋势图（LineChart/AreaChart）
+- [x] 最近操作时间线
+- [x] 快捷入口（新建项目/最近打开）
+- [x] 项目创建表单（名称/平台/语言/描述/标签）
+- [x] 项目列表（搜索/过滤/分类）
+- [x] 项目操作（归档/删除/克隆）
+- [x] 项目关联（载荷/模板/构建配置）
+- [x] 成员权限管理（UI占位）
+
+## Phase 3: 代码编辑 & 载荷管理
+- [x] Monaco Editor 多标签编辑器
+- [x] 多语言语法高亮（Go/C/C++/Python/Rust/PowerShell）
+- [x] 右键 AI 指令菜单（重写/解释/混淆/反混淆/审计）
+- [x] 代码片段库面板
+- [x] 文件树管理
+- [x] 内嵌终端（模拟Shell）
+- [x] 载荷库分类展示（OS/架构/类型）
+- [x] 载荷生成向导（4步骤）
+- [x] 载荷变形生成
+- [x] 免杀评分展示（VirusTotal集成UI）
+- [x] 载荷版本管理
+- [x] 标签备注
+
+## Phase 4: 模板管理 & 构建测试
+- [x] 内置模板库（注入/提权/横移/持久化/信息收集）
+- [x] 模板结构展示（元数据/MITRE ATT&CK/代码骨架）
+- [x] 自定义模板创建与编辑
+- [x] 模板参数化（变量替换预览）
+- [x] 模板版本历史
+- [x] 多平台构建配置（Windows/Linux/macOS）
+- [x] 一键构建与实时日志
+- [x] 构建产物管理（哈希/大小/时间）
+- [x] 构建流水线（编译→混淆→打包→测试）
+- [x] 构建历史记录
+
+## Phase 5: 智能助手
+- [x] 多会话管理（左侧列表/命名/归档）
+- [x] 上下文感知（自动注入当前文件/项目）
+- [x] 漏洞利用代码生成（AI模式）
+- [x] 代码审计分析（AI模式）
+- [x] 技术方案咨询（AI模式）
+- [x] 渗透报告生成（AI模式）
+- [x] AI 工具调用（新建载荷/搜索模板/执行构建）
+- [x] 对话导出（Markdown）
+- [x] 快捷提示词
+
+## Phase 6: 系统设置 & 后端
+- [x] AI 模型配置（API Key/模型/Temperature）
+- [x] 编译环境配置（本地工具链/远程SSH）
+- [x] 外部服务集成（VirusTotal/代理）
+- [x] 主题与编辑器偏好
+- [x] 审计日志查看
+- [x] 数据备份恢复（UI占位）
+- [x] tRPC 路由（overview/projects/payloads/templates/builds/ai/settings/audit）
+- [x] AI 层接口（invokeLLM）
+
+## Phase 7: 深度联动
+- [x] 代码编辑器内嵌AI操作（右键菜单）
+- [x] 代码编辑器发送到AI助手
+- [x] 构建结果自动回写统计概览
+- [x] 智能助手跨模块操作触发
+- [x] 项目一键跳转至关联模块
+- [x] 全局AppContext跨模块状态管理
+- [x] Vitest 单元测试（13个测试全部通过）

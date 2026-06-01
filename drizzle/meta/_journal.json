@@ -1,5 +1,27 @@
 {
   "version": "7",
   "dialect": "mysql",
-  "entries": []
+  "entries": [
+    {
+      "idx": 0,
+      "version": "5",
+      "when": 1780287419159,
+      "tag": "0000_flawless_wrecking_crew",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1780287578968,
+      "tag": "0001_stiff_payback",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1780287655262,
+      "tag": "0002_long_krista_starr",
+      "breakpoints": true
+    }
+  ]
 }
