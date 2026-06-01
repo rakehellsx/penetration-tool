@@ -6,72 +6,241 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { RadialBarChart, RadialBar, ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import {
   Plus, Search, Package, Shield, Trash2, Copy, Tag, Filter,
   ChevronRight, AlertTriangle, CheckCircle2, XCircle, Zap,
-  MoreHorizontal, RefreshCw, Eye, Download, Layers
+  MoreHorizontal, RefreshCw, Eye, Download, Layers, Terminal,
+  Globe, Code2, Lock, Activity, Target, Crosshair, Radio,
+  TrendingUp, TrendingDown, Clock, Hash, Cpu, HardDrive,
+  BarChart3, Flame, Star, GitBranch, ExternalLink, Settings
 } from "lucide-react";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuSeparator, DropdownMenuTrigger
+  DropdownMenuSeparator, DropdownMenuTrigger, DropdownMenuLabel
 } from "@/components/ui/dropdown-menu";
 
-// ─── Mock payloads for demo ────────────────────────────────────────────────
 const DEMO_PAYLOADS = [
   {
-    id: 1, name: "RevShell-Win64-HTTP", os: "windows", arch: "x64", payloadType: "exe",
+    id: 1, name: "RevShell-Win64-HTTP-AES", os: "windows", arch: "x64", payloadType: "exe",
     listenType: "http", lhost: "192.168.1.100", lport: 8080,
     encoding: "base64", obfuscation: "string_encrypt", encryption: "aes256",
     avScore: 4.2, avDetections: 3, avTotal: 72,
-    tags: ["reverse_shell", "http", "evasion"], notes: "HTTP反弹Shell，AES加密",
-    fileSize: 156234, fileHash: "sha256:a1b2c3d4...", createdAt: new Date().toISOString(),
+    tags: ["reverse_shell", "http", "evasion"], notes: "HTTP反弹Shell，AES-256加密，字符串混淆",
+    fileSize: 156234, fileHash: "sha256:a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4", createdAt: new Date().toISOString(),
+    version: 3, parentId: null, starred: true,
   },
   {
-    id: 2, name: "Loader-Reflective-DLL", os: "windows", arch: "x64", payloadType: "dll",
+    id: 2, name: "Loader-Reflective-DLL-x64", os: "windows", arch: "x64", payloadType: "dll",
     listenType: "reverse_shell", lhost: "10.0.0.1", lport: 4444,
     encoding: "xor", obfuscation: "control_flow", encryption: "rc4",
     avScore: 8.3, avDetections: 6, avTotal: 72,
-    tags: ["dll_injection", "reflective"], notes: "反射DLL注入载荷",
-    fileSize: 89432, fileHash: "sha256:e5f6g7h8...", createdAt: new Date().toISOString(),
+    tags: ["dll_injection", "reflective", "windows"], notes: "反射DLL注入，控制流混淆",
+    fileSize: 89432, fileHash: "sha256:e5f6g7h8i9j0e5f6g7h8i9j0e5f6g7h8", createdAt: new Date().toISOString(),
+    version: 2, parentId: null, starred: false,
   },
   {
     id: 3, name: "Shellcode-Meterpreter-x64", os: "windows", arch: "x64", payloadType: "shellcode",
     listenType: "reverse_shell", lhost: "192.168.1.100", lport: 4444,
     encoding: "shikata_ga_nai", obfuscation: "polymorphic", encryption: "none",
     avScore: 45.8, avDetections: 33, avTotal: 72,
-    tags: ["meterpreter", "shellcode"], notes: "标准Meterpreter shellcode",
-    fileSize: 4096, fileHash: "sha256:i9j0k1l2...", createdAt: new Date().toISOString(),
+    tags: ["meterpreter", "shellcode", "msf"], notes: "标准Meterpreter shellcode，检出率较高",
+    fileSize: 4096, fileHash: "sha256:i9j0k1l2m3n4i9j0k1l2m3n4i9j0k1l2", createdAt: new Date().toISOString(),
+    version: 1, parentId: null, starred: false,
   },
   {
-    id: 4, name: "LinuxELF-RevShell", os: "linux", arch: "x64", payloadType: "exe",
+    id: 4, name: "LinuxELF-RevShell-x64", os: "linux", arch: "x64", payloadType: "exe",
     listenType: "reverse_shell", lhost: "10.10.10.1", lport: 9001,
     encoding: "none", obfuscation: "strip_symbols", encryption: "none",
     avScore: 12.5, avDetections: 9, avTotal: 72,
-    tags: ["linux", "elf", "reverse_shell"], notes: "Linux ELF反弹Shell",
-    fileSize: 23456, fileHash: "sha256:m3n4o5p6...", createdAt: new Date().toISOString(),
+    tags: ["linux", "elf", "reverse_shell"], notes: "Linux ELF反弹Shell，去符号处理",
+    fileSize: 23456, fileHash: "sha256:m3n4o5p6q7r8m3n4o5p6q7r8m3n4o5p6", createdAt: new Date().toISOString(),
+    version: 1, parentId: null, starred: false,
+  },
+  {
+    id: 5, name: "DNS-Tunnel-Payload-Win", os: "windows", arch: "x64", payloadType: "exe",
+    listenType: "dns", lhost: "ns1.evil.com", lport: 53,
+    encoding: "base32", obfuscation: "string_encrypt", encryption: "chacha20",
+    avScore: 2.8, avDetections: 2, avTotal: 72,
+    tags: ["dns", "tunnel", "covert"], notes: "DNS隧道通信，绕过出站过滤",
+    fileSize: 198765, fileHash: "sha256:s9t0u1v2w3x4s9t0u1v2w3x4s9t0u1v2", createdAt: new Date().toISOString(),
+    version: 4, parentId: null, starred: true,
+  },
+  {
+    id: 6, name: "macOS-Backdoor-ARM64", os: "macos", arch: "arm64", payloadType: "script",
+    listenType: "http", lhost: "192.168.1.200", lport: 443,
+    encoding: "base64", obfuscation: "none", encryption: "tls",
+    avScore: 19.4, avDetections: 14, avTotal: 72,
+    tags: ["macos", "arm64", "backdoor"], notes: "macOS M系列芯片后门，TLS加密通信",
+    fileSize: 45678, fileHash: "sha256:y5z6a7b8c9d0y5z6a7b8c9d0y5z6a7b8", createdAt: new Date().toISOString(),
+    version: 1, parentId: null, starred: false,
   },
 ];
 
-function AvScoreBadge({ score, detections, total }: { score: number; detections: number; total: number }) {
+const OS_CONFIG: Record<string, { color: string; bg: string; border: string; icon: React.ElementType }> = {
+  windows: { color: "text-blue-700", bg: "bg-blue-50", border: "border-blue-200", icon: Shield },
+  linux: { color: "text-orange-700", bg: "bg-orange-50", border: "border-orange-200", icon: Terminal },
+  macos: { color: "text-gray-700", bg: "bg-gray-50", border: "border-gray-200", icon: Globe },
+  cross: { color: "text-purple-700", bg: "bg-purple-50", border: "border-purple-200", icon: Layers },
+};
+
+const TYPE_CONFIG: Record<string, { color: string; bg: string }> = {
+  shellcode: { color: "text-red-700", bg: "bg-red-50" },
+  exe: { color: "text-indigo-700", bg: "bg-indigo-50" },
+  dll: { color: "text-cyan-700", bg: "bg-cyan-50" },
+  script: { color: "text-green-700", bg: "bg-green-50" },
+  other: { color: "text-gray-700", bg: "bg-gray-50" },
+};
+
+function AvScoreRing({ score, detections, total }: { score: number; detections: number; total: number }) {
+  const evasionRate = 100 - score;
   const isGood = score < 10;
   const isMedium = score >= 10 && score < 30;
+  const color = isGood ? "#22c55e" : isMedium ? "#f59e0b" : "#ef4444";
+  const data = [{ value: evasionRate, fill: color }];
+
   return (
-    <div className={cn(
-      "flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium",
-      isGood ? "bg-green-50 text-green-700 border border-green-200" :
-      isMedium ? "bg-yellow-50 text-yellow-700 border border-yellow-200" :
-      "bg-red-50 text-red-700 border border-red-200"
-    )}>
-      {isGood ? <CheckCircle2 className="w-3 h-3" /> : isMedium ? <AlertTriangle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-      <span>{detections}/{total}</span>
-      <span className="text-[10px] opacity-70">({score.toFixed(1)}%)</span>
+    <div className="flex items-center gap-3">
+      <div className="relative w-14 h-14">
+        <ResponsiveContainer width="100%" height="100%">
+          <RadialBarChart cx="50%" cy="50%" innerRadius="60%" outerRadius="100%" data={data} startAngle={90} endAngle={-270}>
+            <RadialBar dataKey="value" background={{ fill: "#f1f5f9" }} cornerRadius={4} />
+          </RadialBarChart>
+        </ResponsiveContainer>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className="text-[11px] font-bold" style={{ color }}>{evasionRate.toFixed(0)}%</span>
+        </div>
+      </div>
+      <div>
+        <div className={cn("flex items-center gap-1 text-xs font-semibold mb-0.5",
+          isGood ? "text-green-700" : isMedium ? "text-yellow-700" : "text-red-600"
+        )}>
+          {isGood ? <CheckCircle2 className="w-3 h-3" /> : isMedium ? <AlertTriangle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+          {isGood ? "免杀良好" : isMedium ? "部分检出" : "高危检出"}
+        </div>
+        <p className="text-[11px] text-muted-foreground">{detections}/{total} 引擎检出</p>
+      </div>
     </div>
+  );
+}
+
+function PayloadCard({ payload }: { payload: typeof DEMO_PAYLOADS[0] }) {
+  const [starred, setStarred] = useState(payload.starred);
+  const utils = trpc.useUtils();
+  const deleteMutation = trpc.payloads.delete.useMutation({ onSuccess: () => { utils.payloads.list.invalidate(); toast.success("已删除"); } });
+  const morphMutation = trpc.payloads.morph.useMutation({ onSuccess: () => { utils.payloads.list.invalidate(); toast.success("变形载荷已生成"); } });
+
+  const osConf = OS_CONFIG[payload.os] ?? OS_CONFIG.cross;
+  const typeConf = TYPE_CONFIG[payload.payloadType] ?? TYPE_CONFIG.other;
+  const OsIcon = osConf.icon;
+
+  return (
+    <Card className="border card-hover card-glow-primary overflow-hidden group">
+      <div className={cn("h-0.5", payload.avScore < 10 ? "bg-grad-success" : payload.avScore < 30 ? "bg-grad-warning" : "bg-grad-danger")} />
+      <CardContent className="p-4">
+        {/* Header */}
+        <div className="flex items-start gap-3 mb-3">
+          <div className={cn("w-10 h-10 rounded-xl border flex items-center justify-center shrink-0", osConf.bg, osConf.border)}>
+            <OsIcon className={cn("w-5 h-5", osConf.color)} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <h3 className="text-sm font-bold font-mono truncate">{payload.name}</h3>
+              {starred && <Star className="w-3 h-3 text-amber-400 fill-amber-400 shrink-0" />}
+              <Badge variant="outline" className="text-[9px] h-4 px-1 ml-auto shrink-0">v{payload.version}</Badge>
+            </div>
+            <p className="text-xs text-muted-foreground line-clamp-1">{payload.notes}</p>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="w-7 h-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                <MoreHorizontal className="w-3.5 h-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuLabel className="text-xs text-muted-foreground">载荷操作</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => toast.info("VirusTotal 扫描中...")}>
+                <Shield className="w-3.5 h-3.5 mr-2 text-blue-500" /> 免杀评分
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => morphMutation.mutate({ parentId: payload.id, name: `${payload.name}-morph-${Date.now()}` })}>
+                <Layers className="w-3.5 h-3.5 mr-2 text-purple-500" /> 变形生成
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setStarred(!starred)}>
+                <Star className="w-3.5 h-3.5 mr-2 text-amber-400" /> {starred ? "取消收藏" : "收藏"}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => toast.info("下载即将上线")}>
+                <Download className="w-3.5 h-3.5 mr-2" /> 下载
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate({ id: payload.id })}>
+                <Trash2 className="w-3.5 h-3.5 mr-2" /> 删除
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        {/* Tags */}
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-semibold border", osConf.bg, osConf.border, osConf.color)}>{payload.os}</span>
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground font-mono">{payload.arch}</span>
+          <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium", typeConf.bg, typeConf.color)}>{payload.payloadType}</span>
+          {payload.tags.slice(0, 2).map(t => (
+            <span key={t} className="text-[10px] px-2 py-0.5 rounded-full bg-muted border border-border text-muted-foreground">#{t}</span>
+          ))}
+        </div>
+
+        {/* AV Score Ring */}
+        <div className="mb-3 p-2.5 rounded-xl bg-muted/40 border border-border">
+          <AvScoreRing score={payload.avScore} detections={payload.avDetections} total={payload.avTotal} />
+        </div>
+
+        {/* Config info */}
+        <div className="grid grid-cols-2 gap-1.5 mb-3 text-[11px]">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Radio className="w-3 h-3 text-blue-500" />
+            <span className="font-mono">{payload.lhost}:{payload.lport}</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Lock className="w-3 h-3 text-green-500" />
+            <span>{payload.encryption !== "none" ? payload.encryption : "无加密"}</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <HardDrive className="w-3 h-3 text-purple-500" />
+            <span>{(payload.fileSize / 1024).toFixed(1)} KB</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <Hash className="w-3 h-3 text-orange-500" />
+            <span className="font-mono truncate">{payload.fileHash.slice(7, 19)}...</span>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between pt-2 border-t border-border">
+          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <Clock className="w-3 h-3" />
+            {new Date(payload.createdAt).toLocaleDateString()}
+          </div>
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1 text-muted-foreground hover:text-foreground"
+              onClick={() => toast.info("VirusTotal 扫描中...")}>
+              <Shield className="w-3 h-3" /> 扫描
+            </Button>
+            <Button variant="ghost" size="sm" className="h-6 text-[10px] gap-1 text-primary"
+              onClick={() => morphMutation.mutate({ parentId: payload.id, name: `${payload.name}-morph` })}>
+              <Layers className="w-3 h-3" /> 变形
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -85,115 +254,101 @@ function PayloadWizard({ open, onClose }: { open: boolean; onClose: () => void }
   });
   const utils = trpc.useUtils();
   const createMutation = trpc.payloads.create.useMutation({
-    onSuccess: () => {
-      utils.payloads.list.invalidate();
-      toast.success("载荷生成成功");
-      onClose();
-      setStep(1);
-    },
+    onSuccess: () => { utils.payloads.list.invalidate(); toast.success("载荷生成成功 🎉"); onClose(); setStep(1); },
     onError: (e) => toast.error(`生成失败: ${e.message}`),
   });
 
-  const steps = ["基本配置", "监听配置", "混淆加密", "确认生成"];
+  const steps = [
+    { label: "基本配置", icon: Settings },
+    { label: "监听配置", icon: Radio },
+    { label: "混淆加密", icon: Lock },
+    { label: "确认生成", icon: Zap },
+  ];
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Zap className="w-4 h-4 text-amber-500" />
+            <div className="w-7 h-7 rounded-lg bg-grad-amber flex items-center justify-center">
+              <Zap className="w-3.5 h-3.5 text-white" />
+            </div>
             载荷生成向导
           </DialogTitle>
         </DialogHeader>
 
         {/* Step indicator */}
-        <div className="flex items-center gap-0 mb-4">
-          {steps.map((s, i) => (
-            <div key={i} className="flex items-center flex-1">
-              <div className={cn(
-                "w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold shrink-0",
-                i + 1 === step ? "bg-primary text-white" :
-                i + 1 < step ? "bg-green-500 text-white" :
-                "bg-muted text-muted-foreground"
-              )}>
-                {i + 1 < step ? "✓" : i + 1}
+        <div className="flex items-center gap-0">
+          {steps.map((s, i) => {
+            const Icon = s.icon;
+            const done = i + 1 < step;
+            const active = i + 1 === step;
+            return (
+              <div key={i} className="flex items-center flex-1">
+                <div className="flex flex-col items-center gap-1">
+                  <div className={cn("w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all",
+                    done ? "bg-green-500 border-green-500 text-white" :
+                    active ? "bg-primary border-primary text-white" :
+                    "bg-muted border-border text-muted-foreground"
+                  )}>
+                    {done ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-3.5 h-3.5" />}
+                  </div>
+                  <span className={cn("text-[10px] font-medium hidden sm:block", active ? "text-primary" : "text-muted-foreground")}>{s.label}</span>
+                </div>
+                {i < steps.length - 1 && <div className={cn("flex-1 h-0.5 mx-1 mb-4", done ? "bg-green-500" : "bg-border")} />}
               </div>
-              <div className={cn("text-[10px] ml-1 hidden sm:block", i + 1 <= step ? "text-foreground" : "text-muted-foreground")}>
-                {s}
-              </div>
-              {i < steps.length - 1 && <div className={cn("flex-1 h-px mx-2", i + 1 < step ? "bg-green-500" : "bg-border")} />}
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        <div className="space-y-4 min-h-[200px]">
+        <div className="min-h-[200px] space-y-4">
           {step === 1 && (
             <>
               <div className="space-y-1.5">
-                <Label className="text-xs">载荷名称 *</Label>
-                <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. RevShell-Win64-HTTP" className="font-mono text-sm" />
+                <Label className="text-xs font-semibold">载荷名称 *</Label>
+                <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. RevShell-Win64-HTTP" className="font-mono" />
               </div>
               <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">操作系统</Label>
-                  <Select value={form.os} onValueChange={v => setForm(f => ({ ...f, os: v }))}>
-                    <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="windows">Windows</SelectItem>
-                      <SelectItem value="linux">Linux</SelectItem>
-                      <SelectItem value="macos">macOS</SelectItem>
-                      <SelectItem value="cross">跨平台</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">架构</Label>
-                  <Select value={form.arch} onValueChange={v => setForm(f => ({ ...f, arch: v }))}>
-                    <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="x64">x64</SelectItem>
-                      <SelectItem value="x86">x86</SelectItem>
-                      <SelectItem value="arm64">ARM64</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">载荷类型</Label>
-                  <Select value={form.payloadType} onValueChange={v => setForm(f => ({ ...f, payloadType: v }))}>
-                    <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="shellcode">Shellcode</SelectItem>
-                      <SelectItem value="exe">EXE</SelectItem>
-                      <SelectItem value="dll">DLL</SelectItem>
-                      <SelectItem value="script">Script</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {[
+                  { label: "操作系统", key: "os", options: [["windows","Windows"],["linux","Linux"],["macos","macOS"],["cross","跨平台"]] },
+                  { label: "架构", key: "arch", options: [["x64","x64"],["x86","x86"],["arm64","ARM64"]] },
+                  { label: "载荷类型", key: "payloadType", options: [["shellcode","Shellcode"],["exe","EXE"],["dll","DLL"],["script","Script"]] },
+                ].map(field => (
+                  <div key={field.key} className="space-y-1.5">
+                    <Label className="text-xs font-semibold">{field.label}</Label>
+                    <Select value={(form as any)[field.key]} onValueChange={v => setForm(f => ({ ...f, [field.key]: v }))}>
+                      <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {field.options.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
               </div>
             </>
           )}
           {step === 2 && (
             <>
               <div className="space-y-1.5">
-                <Label className="text-xs">监听类型</Label>
+                <Label className="text-xs font-semibold">监听类型</Label>
                 <Select value={form.listenType} onValueChange={v => setForm(f => ({ ...f, listenType: v }))}>
-                  <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="reverse_shell">Reverse Shell</SelectItem>
-                    <SelectItem value="bind">Bind Shell</SelectItem>
-                    <SelectItem value="http">HTTP/HTTPS</SelectItem>
-                    <SelectItem value="dns">DNS Tunnel</SelectItem>
+                    <SelectItem value="reverse_shell">🔄 Reverse Shell</SelectItem>
+                    <SelectItem value="bind">🔗 Bind Shell</SelectItem>
+                    <SelectItem value="http">🌐 HTTP/HTTPS</SelectItem>
+                    <SelectItem value="dns">📡 DNS Tunnel</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">LHOST</Label>
-                  <Input value={form.lhost} onChange={e => setForm(f => ({ ...f, lhost: e.target.value }))} placeholder="192.168.1.100" className="font-mono text-sm" />
+                  <Label className="text-xs font-semibold">LHOST</Label>
+                  <Input value={form.lhost} onChange={e => setForm(f => ({ ...f, lhost: e.target.value }))} placeholder="192.168.1.100" className="font-mono" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">LPORT</Label>
-                  <Input type="number" value={form.lport} onChange={e => setForm(f => ({ ...f, lport: parseInt(e.target.value) || 4444 }))} placeholder="4444" className="font-mono text-sm" />
+                  <Label className="text-xs font-semibold">LPORT</Label>
+                  <Input type="number" value={form.lport} onChange={e => setForm(f => ({ ...f, lport: parseInt(e.target.value) || 4444 }))} className="font-mono" />
                 </div>
               </div>
             </>
@@ -201,100 +356,64 @@ function PayloadWizard({ open, onClose }: { open: boolean; onClose: () => void }
           {step === 3 && (
             <>
               <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">编码方式</Label>
-                  <Select value={form.encoding} onValueChange={v => setForm(f => ({ ...f, encoding: v }))}>
-                    <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">无</SelectItem>
-                      <SelectItem value="base64">Base64</SelectItem>
-                      <SelectItem value="xor">XOR</SelectItem>
-                      <SelectItem value="shikata_ga_nai">Shikata Ga Nai</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">混淆方案</Label>
-                  <Select value={form.obfuscation} onValueChange={v => setForm(f => ({ ...f, obfuscation: v }))}>
-                    <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">无</SelectItem>
-                      <SelectItem value="string_encrypt">字符串加密</SelectItem>
-                      <SelectItem value="control_flow">控制流混淆</SelectItem>
-                      <SelectItem value="polymorphic">多态变形</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">加密方案</Label>
-                  <Select value={form.encryption} onValueChange={v => setForm(f => ({ ...f, encryption: v }))}>
-                    <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">无</SelectItem>
-                      <SelectItem value="aes256">AES-256</SelectItem>
-                      <SelectItem value="rc4">RC4</SelectItem>
-                      <SelectItem value="chacha20">ChaCha20</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                {[
+                  { label: "编码方式", key: "encoding", options: [["none","无"],["base64","Base64"],["xor","XOR"],["base32","Base32"],["shikata_ga_nai","Shikata Ga Nai"]] },
+                  { label: "混淆方案", key: "obfuscation", options: [["none","无"],["string_encrypt","字符串加密"],["control_flow","控制流混淆"],["polymorphic","多态变形"],["strip_symbols","去符号"]] },
+                  { label: "加密方案", key: "encryption", options: [["none","无"],["aes256","AES-256"],["rc4","RC4"],["chacha20","ChaCha20"],["tls","TLS"]] },
+                ].map(field => (
+                  <div key={field.key} className="space-y-1.5">
+                    <Label className="text-xs font-semibold">{field.label}</Label>
+                    <Select value={(form as any)[field.key]} onValueChange={v => setForm(f => ({ ...f, [field.key]: v }))}>
+                      <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {field.options.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ))}
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">备注</Label>
-                <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="使用场景、目标环境..." className="text-sm resize-none" rows={2} />
+                <Label className="text-xs font-semibold">备注</Label>
+                <Textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="使用场景、目标环境..." className="resize-none text-sm" rows={2} />
               </div>
             </>
           )}
           {step === 4 && (
-            <div className="space-y-3">
-              <div className="bg-muted rounded-lg p-4 space-y-2 text-sm">
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    ["名称", form.name], ["OS", form.os], ["架构", form.arch],
-                    ["类型", form.payloadType], ["监听", form.listenType],
-                    ["LHOST", form.lhost], ["LPORT", form.lport.toString()],
-                    ["编码", form.encoding], ["混淆", form.obfuscation], ["加密", form.encryption],
-                  ].map(([k, v]) => (
-                    <div key={k} className="flex gap-2">
-                      <span className="text-muted-foreground text-xs w-16 shrink-0">{k}:</span>
-                      <span className="font-mono text-xs font-medium">{v}</span>
-                    </div>
-                  ))}
-                </div>
+            <div className="bg-muted/50 rounded-xl p-4 border border-border">
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                {[
+                  ["名称", form.name], ["OS", form.os], ["架构", form.arch], ["类型", form.payloadType],
+                  ["监听", form.listenType], ["LHOST", form.lhost], ["LPORT", String(form.lport)],
+                  ["编码", form.encoding], ["混淆", form.obfuscation], ["加密", form.encryption],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex gap-2 items-center">
+                    <span className="text-muted-foreground text-xs w-14 shrink-0">{k}</span>
+                    <span className="font-mono text-xs font-semibold bg-background px-2 py-0.5 rounded border border-border">{v}</span>
+                  </div>
+                ))}
               </div>
-              <p className="text-xs text-muted-foreground">确认以上配置后点击「生成载荷」</p>
             </div>
           )}
         </div>
 
-        <DialogFooter className="gap-2">
+        <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => step > 1 ? setStep(s => s - 1) : onClose()}>
             {step > 1 ? "上一步" : "取消"}
           </Button>
           {step < 4 ? (
             <Button size="sm" onClick={() => setStep(s => s + 1)} disabled={step === 1 && !form.name}>
-              下一步
+              下一步 <ChevronRight className="w-3.5 h-3.5 ml-1" />
             </Button>
           ) : (
-            <Button
-              size="sm"
-              disabled={createMutation.isPending}
+            <Button size="sm" disabled={createMutation.isPending} className="bg-grad-amber border-0"
               onClick={() => createMutation.mutate({
-                name: form.name,
-                os: form.os as any,
-                arch: form.arch as any,
-                payloadType: form.payloadType as any,
-                listenType: form.listenType as any,
-                lhost: form.lhost,
-                lport: form.lport,
-                encoding: form.encoding,
-                obfuscation: form.obfuscation,
-                encryption: form.encryption,
-                notes: form.notes,
+                name: form.name, os: form.os as any, arch: form.arch as any,
+                payloadType: form.payloadType as any, listenType: form.listenType as any,
+                lhost: form.lhost, lport: form.lport, encoding: form.encoding,
+                obfuscation: form.obfuscation, encryption: form.encryption, notes: form.notes,
                 tags: form.tags ? form.tags.split(",").map(t => t.trim()) : [],
                 generationParams: { encoding: form.encoding, obfuscation: form.obfuscation, encryption: form.encryption },
-              })}
-              className="bg-amber-500 hover:bg-amber-600"
-            >
+              })}>
               <Zap className="w-3.5 h-3.5 mr-1.5" />
               {createMutation.isPending ? "生成中..." : "生成载荷"}
             </Button>
@@ -305,179 +424,85 @@ function PayloadWizard({ open, onClose }: { open: boolean; onClose: () => void }
   );
 }
 
-function PayloadCard({ payload }: { payload: typeof DEMO_PAYLOADS[0] }) {
-  const utils = trpc.useUtils();
-  const deleteMutation = trpc.payloads.delete.useMutation({
-    onSuccess: () => { utils.payloads.list.invalidate(); toast.success("载荷已删除"); }
-  });
-  const morphMutation = trpc.payloads.morph.useMutation({
-    onSuccess: () => { utils.payloads.list.invalidate(); toast.success("变形载荷已生成"); }
-  });
-
-  const OS_COLORS: Record<string, string> = {
-    windows: "bg-blue-100 text-blue-700",
-    linux: "bg-orange-100 text-orange-700",
-    macos: "bg-gray-100 text-gray-700",
-    cross: "bg-purple-100 text-purple-700",
-  };
-  const TYPE_COLORS: Record<string, string> = {
-    shellcode: "bg-red-100 text-red-700",
-    exe: "bg-indigo-100 text-indigo-700",
-    dll: "bg-cyan-100 text-cyan-700",
-    script: "bg-green-100 text-green-700",
-  };
-
-  return (
-    <Card className="border border-border hover:shadow-md transition-all duration-200 group">
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-2 mb-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center shrink-0">
-              <Package className="w-4.5 h-4.5 text-amber-600" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-sm font-semibold text-foreground truncate font-mono">{payload.name}</h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {payload.lhost}:{payload.lport} · {payload.listenType?.replace("_", " ")}
-              </p>
-            </div>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="w-7 h-7 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                <MoreHorizontal className="w-3.5 h-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="text-sm">
-              <DropdownMenuItem onClick={() => toast.info("VirusTotal 扫描中...")}>
-                <Shield className="w-3.5 h-3.5 mr-2" /> 免杀评分
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => morphMutation.mutate({ parentId: payload.id, name: `${payload.name}-morph-${Date.now()}` })}>
-                <Layers className="w-3.5 h-3.5 mr-2" /> 变形生成
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => toast.info("下载功能即将上线")}>
-                <Download className="w-3.5 h-3.5 mr-2" /> 下载载荷
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive" onClick={() => deleteMutation.mutate({ id: payload.id })}>
-                <Trash2 className="w-3.5 h-3.5 mr-2" /> 删除
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-
-        {/* Badges */}
-        <div className="flex flex-wrap gap-1.5 mb-3">
-          <Badge className={cn("text-[10px] h-4 px-1.5 font-normal", OS_COLORS[payload.os])}>{payload.os}</Badge>
-          <Badge variant="outline" className="text-[10px] h-4 px-1.5 font-normal">{payload.arch}</Badge>
-          <Badge className={cn("text-[10px] h-4 px-1.5 font-normal", TYPE_COLORS[payload.payloadType])}>{payload.payloadType}</Badge>
-          {payload.tags.slice(0, 2).map(tag => (
-            <Badge key={tag} variant="outline" className="text-[10px] h-4 px-1.5 font-normal">{tag}</Badge>
-          ))}
-        </div>
-
-        {/* AV Score */}
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-muted-foreground">免杀评分</span>
-          <AvScoreBadge score={payload.avScore} detections={payload.avDetections} total={payload.avTotal} />
-        </div>
-        <Progress
-          value={100 - payload.avScore}
-          className="h-1.5"
-        />
-
-        {/* Footer */}
-        <div className="flex items-center gap-2 mt-3 pt-2 border-t border-border text-xs text-muted-foreground">
-          <span>{(payload.fileSize / 1024).toFixed(1)} KB</span>
-          <span className="font-mono text-[10px] truncate">{payload.fileHash.slice(0, 20)}...</span>
-          <span className="ml-auto">{payload.encoding} + {payload.encryption}</span>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 export default function Payloads() {
   const [showWizard, setShowWizard] = useState(false);
   const [search, setSearch] = useState("");
   const [filterOs, setFilterOs] = useState("all");
   const [filterType, setFilterType] = useState("all");
+  const [activeTab, setActiveTab] = useState("all");
   const { pendingAction, clearAction } = useApp();
 
-  // Auto-open wizard if triggered from other modules
   if (pendingAction?.type === "create_payload") {
     clearAction();
     setTimeout(() => setShowWizard(true), 100);
   }
 
-  const { data: dbPayloads = [] } = trpc.payloads.list.useQuery({
-    os: filterOs !== "all" ? filterOs : undefined,
-    payloadType: filterType !== "all" ? filterType : undefined,
-    search: search || undefined,
-  });
+  const { data: dbPayloads = [] } = trpc.payloads.list.useQuery({ os: filterOs !== "all" ? filterOs : undefined, payloadType: filterType !== "all" ? filterType : undefined, search: search || undefined });
 
-  // Merge demo + db payloads
-  const allPayloads = [...DEMO_PAYLOADS, ...dbPayloads.map((p: any) => ({
-    ...p,
-    avScore: p.avScore ?? 0,
-    avDetections: p.avDetections ?? 0,
-    avTotal: p.avTotal ?? 72,
-    tags: p.tags ?? [],
-    fileSize: p.fileSize ?? 0,
-    fileHash: p.fileHash ?? "sha256:unknown",
-  }))].filter(p => {
+  const allPayloads = dbPayloads.length > 0 ? dbPayloads.map((p: any) => ({ ...p, avScore: p.avScore ?? 0, avDetections: p.avDetections ?? 0, avTotal: p.avTotal ?? 72, tags: p.tags ?? [], fileSize: p.fileSize ?? 0, fileHash: p.fileHash ?? "sha256:unknown", version: 1, starred: false })) : DEMO_PAYLOADS;
+
+  const filtered = allPayloads.filter((p: any) => {
     if (filterOs !== "all" && p.os !== filterOs) return false;
     if (filterType !== "all" && p.payloadType !== filterType) return false;
+    if (activeTab === "starred" && !p.starred) return false;
+    if (activeTab === "windows" && p.os !== "windows") return false;
+    if (activeTab === "linux" && p.os !== "linux") return false;
     if (search && !p.name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
+  const stats = {
+    total: allPayloads.length,
+    good: allPayloads.filter((p: any) => p.avScore < 10).length,
+    windows: allPayloads.filter((p: any) => p.os === "windows").length,
+    linux: allPayloads.filter((p: any) => p.os === "linux").length,
+  };
+
   return (
-    <div className="p-6 space-y-5 max-w-[1600px]">
+    <div className="p-6 space-y-5 max-w-[1600px] animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-foreground">载荷管理</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">生成、管理和评估渗透测试载荷</p>
+          <h2 className="text-xl font-bold">载荷管理</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">生成、管理和评估渗透测试载荷，支持多平台与免杀优化</p>
         </div>
-        <Button size="sm" className="gap-1.5 bg-amber-500 hover:bg-amber-600" onClick={() => setShowWizard(true)}>
-          <Zap className="w-3.5 h-3.5" />
-          生成载荷
+        <Button size="sm" className="gap-1.5 h-8 bg-grad-amber border-0 shadow-md shadow-amber-900/20" onClick={() => setShowWizard(true)}>
+          <Zap className="w-3.5 h-3.5" /> 生成载荷
         </Button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-4 gap-3 stagger-children">
         {[
-          { label: "总载荷数", value: allPayloads.length, color: "text-indigo-600 bg-indigo-50" },
-          { label: "免杀率 >90%", value: allPayloads.filter(p => p.avScore < 10).length, color: "text-green-600 bg-green-50" },
-          { label: "Windows", value: allPayloads.filter(p => p.os === "windows").length, color: "text-blue-600 bg-blue-50" },
-          { label: "Linux", value: allPayloads.filter(p => p.os === "linux").length, color: "text-orange-600 bg-orange-50" },
-        ].map(stat => (
-          <div key={stat.label} className={cn("rounded-lg p-3 flex items-center gap-2", stat.color)}>
+          { label: "总载荷数", value: stats.total, icon: Package, color: "text-indigo-600 bg-indigo-50 border-indigo-200" },
+          { label: "免杀率 >90%", value: stats.good, icon: Shield, color: "text-green-600 bg-green-50 border-green-200" },
+          { label: "Windows", value: stats.windows, icon: Shield, color: "text-blue-600 bg-blue-50 border-blue-200" },
+          { label: "Linux", value: stats.linux, icon: Terminal, color: "text-orange-600 bg-orange-50 border-orange-200" },
+        ].map(s => (
+          <div key={s.label} className={cn("flex items-center gap-3 p-3.5 rounded-xl border card-hover", s.color)}>
+            <s.icon className="w-5 h-5 shrink-0" />
             <div>
-              <p className="text-lg font-bold">{stat.value}</p>
-              <p className="text-xs opacity-80">{stat.label}</p>
+              <p className="text-2xl font-bold leading-none">{s.value}</p>
+              <p className="text-xs opacity-80 mt-0.5">{s.label}</p>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Filters */}
+      {/* Tabs + Filters */}
       <div className="flex items-center gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-xs">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="h-8">
+            <TabsTrigger value="all" className="text-xs">全部</TabsTrigger>
+            <TabsTrigger value="starred" className="text-xs gap-1"><Star className="w-3 h-3" />收藏</TabsTrigger>
+            <TabsTrigger value="windows" className="text-xs">Windows</TabsTrigger>
+            <TabsTrigger value="linux" className="text-xs">Linux</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="relative flex-1 min-w-[180px] max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <Input placeholder="搜索载荷..." value={search} onChange={e => setSearch(e.target.value)} className="pl-8 h-8 text-sm" />
         </div>
-        <Select value={filterOs} onValueChange={setFilterOs}>
-          <SelectTrigger className="w-28 h-8 text-sm"><SelectValue placeholder="OS" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部OS</SelectItem>
-            <SelectItem value="windows">Windows</SelectItem>
-            <SelectItem value="linux">Linux</SelectItem>
-            <SelectItem value="macos">macOS</SelectItem>
-          </SelectContent>
-        </Select>
         <Select value={filterType} onValueChange={setFilterType}>
           <SelectTrigger className="w-28 h-8 text-sm"><SelectValue placeholder="类型" /></SelectTrigger>
           <SelectContent>
@@ -488,13 +513,13 @@ export default function Payloads() {
             <SelectItem value="script">Script</SelectItem>
           </SelectContent>
         </Select>
-        <span className="text-xs text-muted-foreground ml-auto">共 {allPayloads.length} 个载荷</span>
+        <span className="text-xs text-muted-foreground ml-auto">{filtered.length} 个载荷</span>
       </div>
 
-      {/* Payload Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {allPayloads.map((payload) => (
-          <PayloadCard key={payload.id} payload={payload as any} />
+      {/* Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 stagger-children">
+        {filtered.map((payload: any) => (
+          <PayloadCard key={payload.id} payload={payload} />
         ))}
       </div>
 

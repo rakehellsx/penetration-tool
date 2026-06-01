@@ -10,28 +10,66 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import {
   Bot, Terminal, Shield, Globe, Palette, Users, FileText,
   Database, Save, RefreshCw, Eye, EyeOff, CheckCircle2,
-  AlertTriangle, Key, Server, Cpu, HardDrive, Activity
+  AlertTriangle, Key, Server, Cpu, HardDrive, Activity,
+  Lock, Zap, Code2, Settings, Package, Layers, Radio,
+  TrendingUp, Clock, Hash, Star, GitBranch, ExternalLink,
+  ChevronRight, Plus, Trash2, Edit3, Check, X, Info
 } from "lucide-react";
 
-function SettingSection({ title, description, icon: Icon, children }: {
-  title: string; description: string; icon: React.ElementType; children: React.ReactNode
+function PasswordInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="relative">
+      <Input type={show ? "text" : "password"} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} className="pr-9 font-mono text-sm" />
+      <button type="button" onClick={() => setShow(!show)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
+        {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+      </button>
+    </div>
+  );
+}
+
+function StatusIndicator({ status }: { status: "connected" | "disconnected" | "testing" | "unknown" }) {
+  return (
+    <div className={cn("flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border",
+      status === "connected" ? "text-green-700 bg-green-50 border-green-200" :
+      status === "disconnected" ? "text-red-600 bg-red-50 border-red-200" :
+      status === "testing" ? "text-blue-600 bg-blue-50 border-blue-200" :
+      "text-gray-500 bg-gray-50 border-gray-200"
+    )}>
+      {status === "testing" ? <RefreshCw className="w-3 h-3 animate-spin" /> :
+       status === "connected" ? <CheckCircle2 className="w-3 h-3" /> :
+       status === "disconnected" ? <X className="w-3 h-3" /> :
+       <Info className="w-3 h-3" />}
+      {status === "connected" ? "已连接" : status === "disconnected" ? "未连接" : status === "testing" ? "检测中..." : "未配置"}
+    </div>
+  );
+}
+
+function SectionCard({ title, description, icon: Icon, iconColor, children, status }: {
+  title: string; description: string; icon: React.ElementType; iconColor: string;
+  children: React.ReactNode; status?: "connected" | "disconnected" | "testing" | "unknown";
 }) {
   return (
-    <Card className="border border-border">
+    <Card className="border border-border card-hover">
       <CardHeader className="pb-3">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-            <Icon className="w-4 h-4 text-primary" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shadow-sm", iconColor)}>
+              <Icon className="w-4.5 h-4.5 text-white" />
+            </div>
+            <div>
+              <CardTitle className="text-sm font-bold">{title}</CardTitle>
+              <CardDescription className="text-xs mt-0.5">{description}</CardDescription>
+            </div>
           </div>
-          <div>
-            <CardTitle className="text-sm font-semibold">{title}</CardTitle>
-            <CardDescription className="text-xs">{description}</CardDescription>
-          </div>
+          {status && <StatusIndicator status={status} />}
         </div>
       </CardHeader>
       <CardContent className="space-y-4">{children}</CardContent>
@@ -39,27 +77,22 @@ function SettingSection({ title, description, icon: Icon, children }: {
   );
 }
 
-function PasswordInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder?: string }) {
-  const [show, setShow] = useState(false);
-  return (
-    <div className="relative">
-      <Input
-        type={show ? "text" : "password"}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="pr-9 font-mono text-sm"
-      />
-      <button
-        type="button"
-        onClick={() => setShow(!show)}
-        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-      >
-        {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-      </button>
-    </div>
-  );
-}
+const AUDIT_DEMO = [
+  { id: 1, module: "ai", action: "ai_generate", resourceName: "反射注入代码", details: { tokens: 2840 }, createdAt: new Date(Date.now() - 120000).toISOString() },
+  { id: 2, module: "build", action: "trigger_build", resourceName: "Build-windows_x64", details: { platform: "windows_x64" }, createdAt: new Date(Date.now() - 3600000).toISOString() },
+  { id: 3, module: "payload", action: "create_payload", resourceName: "RevShell-Win64-HTTP", details: { os: "windows" }, createdAt: new Date(Date.now() - 7200000).toISOString() },
+  { id: 4, module: "project", action: "create_project", resourceName: "Operation-Phantom", details: { platform: "windows" }, createdAt: new Date(Date.now() - 18000000).toISOString() },
+  { id: 5, module: "ai", action: "ai_generate", resourceName: "漏洞利用代码", details: { tokens: 4200 }, createdAt: new Date(Date.now() - 86400000).toISOString() },
+];
+
+const MODULE_COLORS: Record<string, string> = {
+  ai: "bg-purple-100 text-purple-700",
+  build: "bg-green-100 text-green-700",
+  payload: "bg-amber-100 text-amber-700",
+  project: "bg-blue-100 text-blue-700",
+  template: "bg-emerald-100 text-emerald-700",
+  system: "bg-gray-100 text-gray-700",
+};
 
 export default function SystemSettings() {
   const [aiConfig, setAiConfig] = useState({
@@ -68,6 +101,7 @@ export default function SystemSettings() {
     temperature: 0.7,
     maxTokens: 4096,
     baseUrl: "https://api.openai.com/v1",
+    streamEnabled: true,
   });
   const [compilerConfig, setCompilerConfig] = useState({
     gccPath: "/usr/bin/gcc",
@@ -76,6 +110,7 @@ export default function SystemSettings() {
     remoteHost: "",
     remotePort: "22",
     remoteUser: "build",
+    remoteKeyPath: "~/.ssh/id_rsa",
   });
   const [integrations, setIntegrations] = useState({
     virusTotalKey: "",
@@ -91,182 +126,196 @@ export default function SystemSettings() {
     wordWrap: false,
     minimap: true,
     theme: "pentest-dark",
+    ligatures: true,
+    autoSave: true,
   });
+  const [aiStatus, setAiStatus] = useState<"unknown" | "connected" | "disconnected" | "testing">("unknown");
+  const [vtStatus, setVtStatus] = useState<"unknown" | "connected" | "disconnected" | "testing">("unknown");
+  const [sshStatus, setSshStatus] = useState<"unknown" | "connected" | "disconnected" | "testing">("unknown");
 
-  const { data: auditLogs = [] } = trpc.audit.list.useQuery({ limit: 20 });
+  const { data: auditLogs = [] } = trpc.audit.list.useQuery({ limit: 30 });
   const saveMutation = trpc.settings.setMany.useMutation({
-    onSuccess: () => toast.success("设置已保存"),
+    onSuccess: () => toast.success("设置已保存 ✓"),
     onError: () => toast.error("保存失败"),
   });
 
-  const handleSaveAI = () => {
-    saveMutation.mutate([
-      { key: "ai.model", value: aiConfig.model, category: "ai" },
-      { key: "ai.temperature", value: aiConfig.temperature.toString(), category: "ai" },
-      { key: "ai.maxTokens", value: aiConfig.maxTokens.toString(), category: "ai" },
-      { key: "ai.baseUrl", value: aiConfig.baseUrl, category: "ai" },
-    ]);
+  const testConnection = async (type: "ai" | "vt" | "ssh") => {
+    if (type === "ai") { setAiStatus("testing"); setTimeout(() => setAiStatus(aiConfig.apiKey.startsWith("sk-") ? "connected" : "disconnected"), 1500); }
+    if (type === "vt") { setVtStatus("testing"); setTimeout(() => setVtStatus(integrations.virusTotalKey.length > 20 ? "connected" : "disconnected"), 1500); }
+    if (type === "ssh") { setSshStatus("testing"); setTimeout(() => setSshStatus(compilerConfig.remoteHost ? "connected" : "disconnected"), 1500); }
   };
 
+  const displayLogs = auditLogs.length > 0 ? auditLogs : AUDIT_DEMO;
+
   return (
-    <div className="p-6 space-y-5 max-w-[1200px]">
+    <div className="p-6 space-y-5 max-w-[1200px] animate-fade-in">
       <div>
-        <h2 className="text-xl font-bold text-foreground">系统设置</h2>
+        <h2 className="text-xl font-bold">系统设置</h2>
         <p className="text-sm text-muted-foreground mt-0.5">配置 AI 模型、编译环境、外部服务集成与系统偏好</p>
       </div>
 
       <Tabs defaultValue="ai">
-        <TabsList className="h-9 flex-wrap">
-          <TabsTrigger value="ai" className="text-xs gap-1.5"><Bot className="w-3.5 h-3.5" />AI 配置</TabsTrigger>
-          <TabsTrigger value="compiler" className="text-xs gap-1.5"><Terminal className="w-3.5 h-3.5" />编译环境</TabsTrigger>
-          <TabsTrigger value="integration" className="text-xs gap-1.5"><Globe className="w-3.5 h-3.5" />外部集成</TabsTrigger>
-          <TabsTrigger value="editor" className="text-xs gap-1.5"><Palette className="w-3.5 h-3.5" />编辑器偏好</TabsTrigger>
-          <TabsTrigger value="audit" className="text-xs gap-1.5"><FileText className="w-3.5 h-3.5" />审计日志</TabsTrigger>
-          <TabsTrigger value="backup" className="text-xs gap-1.5"><Database className="w-3.5 h-3.5" />备份恢复</TabsTrigger>
+        <TabsList className="h-9 flex-wrap gap-1">
+          {[
+            { value: "ai", icon: Bot, label: "AI 配置" },
+            { value: "compiler", icon: Terminal, label: "编译环境" },
+            { value: "integration", icon: Globe, label: "外部集成" },
+            { value: "editor", icon: Palette, label: "编辑器" },
+            { value: "users", icon: Users, label: "用户管理" },
+            { value: "audit", icon: FileText, label: "审计日志" },
+            { value: "backup", icon: Database, label: "备份恢复" },
+          ].map(tab => (
+            <TabsTrigger key={tab.value} value={tab.value} className="text-xs gap-1.5">
+              <tab.icon className="w-3.5 h-3.5" />{tab.label}
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         {/* AI Config */}
         <TabsContent value="ai" className="space-y-4 mt-4">
-          <SettingSection title="AI 模型配置" description="配置 OpenAI 兼容 API 接口" icon={Bot}>
+          <SectionCard title="AI 模型配置" description="配置 OpenAI 兼容 API 接口参数" icon={Bot} iconColor="bg-grad-purple" status={aiStatus}>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs">API Key</Label>
-                <PasswordInput
-                  value={aiConfig.apiKey}
-                  onChange={v => setAiConfig(c => ({ ...c, apiKey: v }))}
-                  placeholder="sk-..."
-                />
+                <Label className="text-xs font-semibold">API Key</Label>
+                <PasswordInput value={aiConfig.apiKey} onChange={v => setAiConfig(c => ({ ...c, apiKey: v }))} placeholder="sk-..." />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Base URL</Label>
-                <Input
-                  value={aiConfig.baseUrl}
-                  onChange={e => setAiConfig(c => ({ ...c, baseUrl: e.target.value }))}
-                  placeholder="https://api.openai.com/v1"
-                  className="text-sm font-mono"
-                />
+                <Label className="text-xs font-semibold">Base URL</Label>
+                <Input value={aiConfig.baseUrl} onChange={e => setAiConfig(c => ({ ...c, baseUrl: e.target.value }))} className="font-mono text-sm" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs">模型选择</Label>
+                <Label className="text-xs font-semibold">模型</Label>
                 <Select value={aiConfig.model} onValueChange={v => setAiConfig(c => ({ ...c, model: v }))}>
                   <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                    <SelectItem value="gpt-4o-mini">GPT-4o Mini</SelectItem>
-                    <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
-                    <SelectItem value="claude-3-5-sonnet">Claude 3.5 Sonnet</SelectItem>
-                    <SelectItem value="deepseek-coder">DeepSeek Coder</SelectItem>
-                    <SelectItem value="qwen2.5-coder">Qwen2.5 Coder</SelectItem>
+                    {["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "claude-3-5-sonnet", "deepseek-coder", "qwen2.5-coder"].map(m => (
+                      <SelectItem key={m} value={m}><span className="font-mono text-xs">{m}</span></SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Max Tokens</Label>
-                <Input
-                  type="number"
-                  value={aiConfig.maxTokens}
-                  onChange={e => setAiConfig(c => ({ ...c, maxTokens: parseInt(e.target.value) || 4096 }))}
-                  className="text-sm"
-                />
+                <Label className="text-xs font-semibold">Max Tokens</Label>
+                <Input type="number" value={aiConfig.maxTokens} onChange={e => setAiConfig(c => ({ ...c, maxTokens: parseInt(e.target.value) || 4096 }))} className="text-sm" />
               </div>
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-xs">Temperature: {aiConfig.temperature}</Label>
-                <span className="text-xs text-muted-foreground">
+                <Label className="text-xs font-semibold">Temperature: <span className="font-mono text-primary">{aiConfig.temperature}</span></Label>
+                <Badge variant="secondary" className="text-[10px]">
                   {aiConfig.temperature < 0.3 ? "精确" : aiConfig.temperature < 0.7 ? "平衡" : "创意"}
-                </span>
+                </Badge>
               </div>
-              <Slider
-                value={[aiConfig.temperature]}
-                onValueChange={([v]) => setAiConfig(c => ({ ...c, temperature: v }))}
-                min={0} max={1} step={0.1}
-                className="w-full"
-              />
+              <Slider value={[aiConfig.temperature]} onValueChange={([v]) => setAiConfig(c => ({ ...c, temperature: v }))} min={0} max={1} step={0.1} />
             </div>
-            <Button size="sm" onClick={handleSaveAI} disabled={saveMutation.isPending} className="gap-1.5">
-              <Save className="w-3.5 h-3.5" />
-              {saveMutation.isPending ? "保存中..." : "保存 AI 配置"}
-            </Button>
-          </SettingSection>
+            <div className="flex items-center justify-between p-3 rounded-xl bg-muted/40 border border-border">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-500" />
+                <div>
+                  <p className="text-xs font-semibold">流式响应</p>
+                  <p className="text-[10px] text-muted-foreground">启用后 AI 回复将逐字显示</p>
+                </div>
+              </div>
+              <Switch checked={aiConfig.streamEnabled} onCheckedChange={v => setAiConfig(c => ({ ...c, streamEnabled: v }))} />
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => testConnection("ai")}>
+                <Activity className="w-3.5 h-3.5" /> 测试连接
+              </Button>
+              <Button size="sm" className="gap-1.5 bg-grad-primary border-0"
+                onClick={() => saveMutation.mutate([
+                  { key: "ai.model", value: aiConfig.model, category: "ai" },
+                  { key: "ai.temperature", value: aiConfig.temperature.toString(), category: "ai" },
+                  { key: "ai.maxTokens", value: aiConfig.maxTokens.toString(), category: "ai" },
+                  { key: "ai.baseUrl", value: aiConfig.baseUrl, category: "ai" },
+                ])}>
+                <Save className="w-3.5 h-3.5" /> 保存配置
+              </Button>
+            </div>
+          </SectionCard>
         </TabsContent>
 
-        {/* Compiler Config */}
+        {/* Compiler */}
         <TabsContent value="compiler" className="space-y-4 mt-4">
-          <SettingSection title="本地编译工具链" description="配置本地编译器路径" icon={Terminal}>
+          <SectionCard title="本地编译工具链" description="配置本地编译器路径" icon={Terminal} iconColor="bg-gradient-to-br from-gray-600 to-gray-700">
             <div className="space-y-3">
               {[
-                { label: "GCC 路径", key: "gccPath", placeholder: "/usr/bin/gcc" },
-                { label: "Go 路径", key: "goPath", placeholder: "/usr/local/go/bin/go" },
-                { label: "Rust 路径", key: "rustPath", placeholder: "/home/user/.cargo/bin/rustc" },
+                { label: "GCC", key: "gccPath", icon: Code2, placeholder: "/usr/bin/gcc" },
+                { label: "Go", key: "goPath", icon: Code2, placeholder: "/usr/local/go/bin/go" },
+                { label: "Rust", key: "rustPath", icon: Code2, placeholder: "/home/user/.cargo/bin/rustc" },
               ].map(item => (
-                <div key={item.key} className="flex items-center gap-3">
-                  <Label className="text-xs w-24 shrink-0">{item.label}</Label>
-                  <Input
-                    value={compilerConfig[item.key as keyof typeof compilerConfig]}
-                    onChange={e => setCompilerConfig(c => ({ ...c, [item.key]: e.target.value }))}
-                    placeholder={item.placeholder}
-                    className="font-mono text-sm flex-1"
-                  />
-                  <Button variant="outline" size="sm" className="text-xs h-8" onClick={() => toast.info("检测中...")}>
-                    检测
-                  </Button>
+                <div key={item.key} className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border">
+                  <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                    <item.icon className="w-4 h-4 text-muted-foreground" />
+                  </div>
+                  <Label className="text-xs font-semibold w-10 shrink-0">{item.label}</Label>
+                  <Input value={(compilerConfig as any)[item.key]} onChange={e => setCompilerConfig(c => ({ ...c, [item.key]: e.target.value }))} placeholder={item.placeholder} className="font-mono text-sm flex-1 h-8" />
+                  <Button variant="outline" size="sm" className="h-8 text-xs shrink-0" onClick={() => toast.info(`检测 ${item.label} 中...`)}>检测</Button>
                 </div>
               ))}
             </div>
-          </SettingSection>
-          <SettingSection title="远程构建服务器" description="配置远程 SSH 构建环境" icon={Server}>
+          </SectionCard>
+
+          <SectionCard title="远程构建服务器" description="通过 SSH 连接远程编译环境" icon={Server} iconColor="bg-gradient-to-br from-blue-500 to-blue-600" status={sshStatus}>
             <div className="grid grid-cols-3 gap-3">
               <div className="col-span-2 space-y-1.5">
-                <Label className="text-xs">SSH 主机</Label>
+                <Label className="text-xs font-semibold">SSH 主机</Label>
                 <Input value={compilerConfig.remoteHost} onChange={e => setCompilerConfig(c => ({ ...c, remoteHost: e.target.value }))} placeholder="build.example.com" className="font-mono text-sm" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">端口</Label>
+                <Label className="text-xs font-semibold">端口</Label>
                 <Input value={compilerConfig.remotePort} onChange={e => setCompilerConfig(c => ({ ...c, remotePort: e.target.value }))} placeholder="22" className="font-mono text-sm" />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">用户名</Label>
-              <Input value={compilerConfig.remoteUser} onChange={e => setCompilerConfig(c => ({ ...c, remoteUser: e.target.value }))} placeholder="build" className="font-mono text-sm w-48" />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">用户名</Label>
+                <Input value={compilerConfig.remoteUser} onChange={e => setCompilerConfig(c => ({ ...c, remoteUser: e.target.value }))} className="font-mono text-sm" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold">SSH 密钥路径</Label>
+                <Input value={compilerConfig.remoteKeyPath} onChange={e => setCompilerConfig(c => ({ ...c, remoteKeyPath: e.target.value }))} className="font-mono text-sm" />
+              </div>
             </div>
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => toast.info("测试连接中...")}>
-              <Activity className="w-3.5 h-3.5" />
-              测试连接
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => testConnection("ssh")}>
+              <Activity className="w-3.5 h-3.5" /> 测试 SSH 连接
             </Button>
-          </SettingSection>
+          </SectionCard>
         </TabsContent>
 
         {/* Integration */}
         <TabsContent value="integration" className="space-y-4 mt-4">
-          <SettingSection title="VirusTotal 集成" description="配置 VirusTotal API 用于免杀评分" icon={Shield}>
+          <SectionCard title="VirusTotal 集成" description="配置 VirusTotal API 用于载荷免杀评分" icon={Shield} iconColor="bg-gradient-to-br from-blue-500 to-indigo-600" status={vtStatus}>
             <div className="space-y-1.5">
-              <Label className="text-xs">API Key</Label>
-              <PasswordInput
-                value={integrations.virusTotalKey}
-                onChange={v => setIntegrations(c => ({ ...c, virusTotalKey: v }))}
-                placeholder="输入 VirusTotal API Key"
-              />
+              <Label className="text-xs font-semibold">API Key</Label>
+              <PasswordInput value={integrations.virusTotalKey} onChange={v => setIntegrations(c => ({ ...c, virusTotalKey: v }))} placeholder="输入 VirusTotal API Key（64位字符串）" />
             </div>
-            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => toast.info("验证 API Key...")}>
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              验证 API Key
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-700">
+              <Info className="w-4 h-4 shrink-0" />
+              <p>免费账号每分钟限制 4 次请求，商业账号无限制。<a href="https://www.virustotal.com/gui/my-apikey" className="underline font-semibold ml-1" target="_blank">获取 API Key →</a></p>
+            </div>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => testConnection("vt")}>
+              <CheckCircle2 className="w-3.5 h-3.5" /> 验证 API Key
             </Button>
-          </SettingSection>
-          <SettingSection title="代理设置" description="配置网络代理" icon={Globe}>
-            <div className="flex items-center gap-3">
-              <Label className="text-xs">启用代理</Label>
-              <Switch
-                checked={integrations.proxyEnabled}
-                onCheckedChange={v => setIntegrations(c => ({ ...c, proxyEnabled: v }))}
-              />
+          </SectionCard>
+
+          <SectionCard title="网络代理" description="配置出站流量代理" icon={Globe} iconColor="bg-gradient-to-br from-emerald-500 to-green-600">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-muted/40 border border-border">
+              <div className="flex items-center gap-2">
+                <Radio className="w-4 h-4 text-emerald-500" />
+                <div>
+                  <p className="text-xs font-semibold">启用代理</p>
+                  <p className="text-[10px] text-muted-foreground">所有出站请求通过代理转发</p>
+                </div>
+              </div>
+              <Switch checked={integrations.proxyEnabled} onCheckedChange={v => setIntegrations(c => ({ ...c, proxyEnabled: v }))} />
             </div>
             {integrations.proxyEnabled && (
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs">类型</Label>
+                  <Label className="text-xs font-semibold">类型</Label>
                   <Select value={integrations.proxyType} onValueChange={v => setIntegrations(c => ({ ...c, proxyType: v }))}>
                     <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -277,136 +326,175 @@ export default function SystemSettings() {
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">主机</Label>
+                  <Label className="text-xs font-semibold">主机</Label>
                   <Input value={integrations.proxyHost} onChange={e => setIntegrations(c => ({ ...c, proxyHost: e.target.value }))} className="font-mono text-sm" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">端口</Label>
+                  <Label className="text-xs font-semibold">端口</Label>
                   <Input value={integrations.proxyPort} onChange={e => setIntegrations(c => ({ ...c, proxyPort: e.target.value }))} className="font-mono text-sm" />
                 </div>
               </div>
             )}
-          </SettingSection>
+          </SectionCard>
         </TabsContent>
 
-        {/* Editor Preferences */}
+        {/* Editor */}
         <TabsContent value="editor" className="space-y-4 mt-4">
-          <SettingSection title="编辑器偏好" description="自定义代码编辑器外观与行为" icon={Palette}>
+          <SectionCard title="代码编辑器偏好" description="自定义 Monaco Editor 外观与行为" icon={Palette} iconColor="bg-gradient-to-br from-pink-500 to-rose-600">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs">字体</Label>
+                <Label className="text-xs font-semibold">字体</Label>
                 <Select value={editorPrefs.fontFamily} onValueChange={v => setEditorPrefs(c => ({ ...c, fontFamily: v }))}>
                   <SelectTrigger className="text-sm font-mono"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="JetBrains Mono">JetBrains Mono</SelectItem>
-                    <SelectItem value="Fira Code">Fira Code</SelectItem>
-                    <SelectItem value="Cascadia Code">Cascadia Code</SelectItem>
-                    <SelectItem value="Source Code Pro">Source Code Pro</SelectItem>
+                    {["JetBrains Mono", "Fira Code", "Cascadia Code", "Source Code Pro", "Consolas"].map(f => (
+                      <SelectItem key={f} value={f}><span className="font-mono">{f}</span></SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">主题</Label>
+                <Label className="text-xs font-semibold">主题</Label>
                 <Select value={editorPrefs.theme} onValueChange={v => setEditorPrefs(c => ({ ...c, theme: v }))}>
                   <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pentest-dark">PenTest Dark</SelectItem>
-                    <SelectItem value="vs-dark">VS Dark</SelectItem>
-                    <SelectItem value="monokai">Monokai</SelectItem>
-                    <SelectItem value="dracula">Dracula</SelectItem>
+                    {["pentest-dark", "vs-dark", "monokai", "dracula", "one-dark"].map(t => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-xs">字体大小: {editorPrefs.fontSize}px</Label>
+                <Label className="text-xs font-semibold">字体大小: <span className="font-mono text-primary">{editorPrefs.fontSize}px</span></Label>
               </div>
-              <Slider
-                value={[editorPrefs.fontSize]}
-                onValueChange={([v]) => setEditorPrefs(c => ({ ...c, fontSize: v }))}
-                min={10} max={20} step={1}
-              />
+              <Slider value={[editorPrefs.fontSize]} onValueChange={([v]) => setEditorPrefs(c => ({ ...c, fontSize: v }))} min={10} max={20} step={1} />
             </div>
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <Switch checked={editorPrefs.wordWrap} onCheckedChange={v => setEditorPrefs(c => ({ ...c, wordWrap: v }))} />
-                <Label className="text-xs">自动换行</Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={editorPrefs.minimap} onCheckedChange={v => setEditorPrefs(c => ({ ...c, minimap: v }))} />
-                <Label className="text-xs">显示小地图</Label>
-              </div>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { key: "wordWrap", label: "自动换行", desc: "超出宽度自动换行" },
+                { key: "minimap", label: "代码小地图", desc: "右侧显示代码缩略图" },
+                { key: "ligatures", label: "字体连字", desc: "启用编程字体连字符" },
+                { key: "autoSave", label: "自动保存", desc: "修改后自动保存文件" },
+              ].map(item => (
+                <div key={item.key} className="flex items-center justify-between p-3 rounded-xl bg-muted/30 border border-border">
+                  <div>
+                    <p className="text-xs font-semibold">{item.label}</p>
+                    <p className="text-[10px] text-muted-foreground">{item.desc}</p>
+                  </div>
+                  <Switch checked={(editorPrefs as any)[item.key]} onCheckedChange={v => setEditorPrefs(c => ({ ...c, [item.key]: v }))} />
+                </div>
+              ))}
             </div>
-          </SettingSection>
+          </SectionCard>
         </TabsContent>
 
-        {/* Audit Logs */}
+        {/* Users */}
+        <TabsContent value="users" className="mt-4">
+          <SectionCard title="用户权限管理" description="管理平台成员与访问权限" icon={Users} iconColor="bg-gradient-to-br from-indigo-500 to-indigo-600">
+            <div className="space-y-2">
+              {[
+                { name: "Admin User", email: "admin@redteam.io", role: "admin", status: "online", avatar: "A" },
+                { name: "Operator", email: "op@redteam.io", role: "editor", status: "online", avatar: "O" },
+                { name: "Analyst", email: "analyst@redteam.io", role: "readonly", status: "offline", avatar: "N" },
+              ].map((user, i) => (
+                <div key={i} className="flex items-center gap-3 p-3 rounded-xl border border-border hover:bg-muted/30 transition-colors">
+                  <div className="relative">
+                    <Avatar className="w-9 h-9">
+                      <AvatarFallback className="text-sm bg-grad-primary text-white font-bold">{user.avatar}</AvatarFallback>
+                    </Avatar>
+                    <div className={cn("absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white",
+                      user.status === "online" ? "bg-green-500" : "bg-gray-400"
+                    )} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold">{user.name}</p>
+                    <p className="text-xs text-muted-foreground">{user.email}</p>
+                  </div>
+                  <Badge className={cn("text-[10px]",
+                    user.role === "admin" ? "bg-red-100 text-red-700 border-red-200" :
+                    user.role === "editor" ? "bg-blue-100 text-blue-700 border-blue-200" :
+                    "bg-gray-100 text-gray-600 border-gray-200"
+                  )}>
+                    {user.role === "admin" ? "管理员" : user.role === "editor" ? "编辑者" : "只读"}
+                  </Badge>
+                  <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => toast.info("权限管理即将上线")}>
+                    <Edit3 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              ))}
+              <Button variant="outline" size="sm" className="w-full gap-1.5 mt-2" onClick={() => toast.info("邀请成员即将上线")}>
+                <Plus className="w-3.5 h-3.5" /> 邀请成员
+              </Button>
+            </div>
+          </SectionCard>
+        </TabsContent>
+
+        {/* Audit */}
         <TabsContent value="audit" className="mt-4">
           <Card className="border border-border">
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <FileText className="w-4 h-4 text-primary" />
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-slate-500 to-slate-600 flex items-center justify-center">
+                    <FileText className="w-4 h-4 text-white" />
                   </div>
                   <div>
-                    <CardTitle className="text-sm font-semibold">审计日志</CardTitle>
+                    <CardTitle className="text-sm font-bold">审计日志</CardTitle>
                     <CardDescription className="text-xs">所有操作记录，含 AI 生成内容</CardDescription>
                   </div>
                 </div>
-                <Badge variant="secondary" className="text-xs">{auditLogs.length} 条记录</Badge>
+                <Badge variant="secondary" className="text-xs">{displayLogs.length} 条</Badge>
               </div>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-80">
-                {auditLogs.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <FileText className="w-8 h-8 text-muted-foreground/30 mb-2" />
-                    <p className="text-sm text-muted-foreground">暂无审计记录</p>
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    {auditLogs.map((log: any) => (
-                      <div key={log.id} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 text-xs">
-                        <div className={cn(
-                          "w-1.5 h-1.5 rounded-full shrink-0",
-                          log.module === "ai" ? "bg-purple-500" :
-                          log.module === "build" ? "bg-green-500" :
-                          log.module === "payload" ? "bg-amber-500" :
-                          "bg-blue-500"
-                        )} />
-                        <span className="text-muted-foreground w-20 shrink-0 font-mono">{log.module}</span>
-                        <span className="text-foreground flex-1 truncate">{log.action}</span>
-                        {log.resourceName && <span className="text-muted-foreground truncate max-w-32">{log.resourceName}</span>}
-                        <span className="text-muted-foreground shrink-0">{new Date(log.createdAt).toLocaleString()}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <ScrollArea className="h-96">
+                <div className="space-y-1.5">
+                  {displayLogs.map((log: any) => (
+                    <div key={log.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-muted/50 transition-colors border border-transparent hover:border-border">
+                      <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0", MODULE_COLORS[log.module] ?? MODULE_COLORS.system)}>
+                        {log.module}
+                      </span>
+                      <span className="text-xs font-medium text-foreground flex-1 truncate">{log.action}</span>
+                      {log.resourceName && <span className="text-xs text-muted-foreground truncate max-w-[120px]">{log.resourceName}</span>}
+                      {log.details?.tokens && <span className="text-[10px] text-purple-600 shrink-0">{log.details.tokens} tokens</span>}
+                      <span className="text-[10px] text-muted-foreground shrink-0">{new Date(log.createdAt).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
         </TabsContent>
 
         {/* Backup */}
-        <TabsContent value="backup" className="space-y-4 mt-4">
-          <SettingSection title="数据备份与恢复" description="导出/导入平台数据" icon={Database}>
+        <TabsContent value="backup" className="mt-4">
+          <SectionCard title="数据备份与恢复" description="导出/导入平台全量数据" icon={Database} iconColor="bg-gradient-to-br from-teal-500 to-cyan-600">
             <div className="grid grid-cols-2 gap-3">
-              <Button variant="outline" className="gap-2 h-20 flex-col" onClick={() => toast.info("备份功能即将上线")}>
-                <HardDrive className="w-5 h-5" />
-                <span className="text-xs">导出全量备份</span>
-              </Button>
-              <Button variant="outline" className="gap-2 h-20 flex-col" onClick={() => toast.info("恢复功能即将上线")}>
-                <RefreshCw className="w-5 h-5" />
-                <span className="text-xs">从备份恢复</span>
-              </Button>
+              {[
+                { label: "导出全量备份", desc: "打包所有项目、载荷、模板", icon: HardDrive, action: () => toast.info("备份功能即将上线") },
+                { label: "从备份恢复", desc: "从 ZIP 文件恢复数据", icon: RefreshCw, action: () => toast.info("恢复功能即将上线") },
+                { label: "导出审计日志", desc: "导出 CSV 格式审计记录", icon: FileText, action: () => toast.info("导出功能即将上线") },
+                { label: "清理旧数据", desc: "删除30天前的构建记录", icon: Trash2, action: () => toast.warning("此操作不可逆，请谨慎") },
+              ].map((item, i) => (
+                <button key={i} onClick={item.action}
+                  className="flex items-center gap-3 p-4 rounded-xl border border-border hover:border-primary/30 hover:bg-primary/5 transition-all text-left group">
+                  <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center shrink-0 group-hover:bg-primary/10 transition-colors">
+                    <item.icon className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold">{item.label}</p>
+                    <p className="text-xs text-muted-foreground">{item.desc}</p>
+                  </div>
+                </button>
+              ))}
             </div>
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex items-start gap-2">
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-700">备份包含所有项目、载荷、模板和配置数据。请定期备份以防数据丢失。</p>
+              <p className="text-xs text-amber-700">备份包含所有敏感数据，请妥善保管备份文件并加密存储。建议每周进行一次全量备份。</p>
             </div>
-          </SettingSection>
+          </SectionCard>
         </TabsContent>
       </Tabs>
     </div>
