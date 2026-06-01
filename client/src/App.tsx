@@ -20,6 +20,10 @@ import SystemSettings from "./pages/SystemSettings";
 function AppContent() {
   const { activeModule } = useApp();
 
+  // Modules that manage their own internal scroll (fixed height, no outer scroll)
+  const SELF_SCROLL_MODULES = ["editor", "assistant"];
+  const isSelfScroll = SELF_SCROLL_MODULES.includes(activeModule);
+
   const renderModule = () => {
     switch (activeModule) {
       case "overview": return <Overview />;
@@ -35,7 +39,7 @@ function AppContent() {
   };
 
   return (
-    <PentestLayout>
+    <PentestLayout isSelfScroll={isSelfScroll}>
       {renderModule()}
     </PentestLayout>
   );
