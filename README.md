@@ -1,1040 +1,529 @@
-# Web App Template (tRPC + Manus Auth + Database)
+# 渗透测试工具开发系统
 
-This template gives you a React 19 + Tailwind 4 + Express 4 + tRPC 11 stack with Manus OAuth already wired. Procedures are your contracts, types flow end to end, and authentication "just works".
+> **PenTest Dev Platform** — 面向红队/渗透测试工程师的一体化 AI 辅助工具开发平台
 
----
-
-## Quick Facts
-
-- **tRPC-first:** define procedures in `server/routers.ts`, consume them with `trpc.*` hooks.
-- **Superjson out of the box:** return Drizzle rows directly—`Date` stays a `Date`.
-- **Auth baked in:** `/api/oauth/callback` handles Manus OAuth, `protectedProcedure` injects `ctx.user`.
-- **Gateway-ready:** all RPC traffic is under `/api/trpc`, making it easy to route at the edge.
+[![Node.js](https://img.shields.io/badge/Node.js-22.x-green)](https://nodejs.org)
+[![React](https://img.shields.io/badge/React-19-blue)](https://react.dev)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue)](https://www.typescriptlang.org)
+[![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 ---
 
-## Build Loop (Four Touch Points)
+## 目录
 
-1. Update schema in `drizzle/schema.ts`, then run `pnpm db:push`.
-2. Add database helpers in `server/db.ts` (return raw results).
-3. Add or extend procedures in `server/routers.ts`, then wire the UI with `trpc.*.useQuery/useMutation`.
-4. Build frontend experience according to `Frontend Workflow`
-5. Cover your changes with Vitest specs inside `server/*.test.ts` (see `server/auth.logout.test.ts`) and run `pnpm test`.
-
-That's it—no manual REST routes, no Axios client, no shared contract files.
+- [系统简介](#系统简介)
+- [系统架构](#系统架构)
+- [技术栈](#技术栈)
+- [功能模块](#功能模块)
+- [快速开始](#快速开始)
+- [环境变量](#环境变量)
+- [部署指南](#部署指南)
+- [项目结构](#项目结构)
+- [API 文档](#api-文档)
+- [开发规范](#开发规范)
 
 ---
 
-## Key Files
+## 系统简介
+
+渗透测试工具开发系统是一个集成 AI 能力的专业红队工具开发平台，旨在帮助安全研究人员高效开发、管理和测试渗透测试工具。系统提供从代码编写、载荷生成、免杀测试到报告生成的完整工作流，并通过 AI 大模型提供智能辅助能力。
+
+**核心价值：**
+
+- **AI 辅助开发**：集成 OpenAI 兼容 API，支持代码生成、代码审计、漏洞利用分析和渗透报告生成
+- **全流程管理**：覆盖项目创建 → 代码编辑 → 载荷生成 → 构建测试 → 报告输出的完整研究流程
+- **团队协作**：多用户权限管理（只读/编辑/管理员），项目成员协作
+- **深度联动**：各模块之间深度集成，跨模块操作无缝衔接
+
+> ⚠️ **免责声明**：本系统仅供授权的安全研究和渗透测试使用。使用者须遵守所在地区的法律法规，对未授权系统进行测试属于违法行为。
+
+---
+
+## 系统架构
 
 ```
-server/auth.logout.test.ts → Reference sample vitest test file
-drizzle/schema.ts → Database tables & types
-server/db.ts → Query helpers (reuse across procedures)
-server/routers.ts → tRPC procedures (auth + features)
-client/src/App.tsx → Routes wiring & layout shells
-client/src/lib/trpc.ts → tRPC client binding
-client/src/pages/ → Feature UI that calls trpc hooks
+┌─────────────────────────────────────────────────────────────────┐
+│                        客户端 (Browser)                          │
+│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────┐  │
+│  │  React 19   │  │  Monaco      │  │  Recharts 数据可视化    │  │
+│  │  + Tailwind │  │  Editor      │  │  + RadialBar/Area/Line  │  │
+│  └──────┬──────┘  └──────┬───────┘  └────────────────────────┘  │
+│         │                │                                        │
+│  ┌──────▼────────────────▼──────────────────────────────────┐   │
+│  │              tRPC Client (类型安全 RPC)                    │   │
+│  │         + React Query (缓存/乐观更新)                      │   │
+│  └──────────────────────┬────────────────────────────────────┘   │
+└─────────────────────────┼───────────────────────────────────────┘
+                          │ HTTPS / WebSocket
+┌─────────────────────────▼───────────────────────────────────────┐
+│                      服务端 (Node.js / Express)                   │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │                   tRPC Router                            │    │
+│  │  overview │ projects │ payloads │ templates │ builds     │    │
+│  │  ai       │ settings │ audit                            │    │
+│  └──────┬──────────┬──────────────────────────────────────┘    │
+│         │          │                                             │
+│  ┌──────▼──────┐  ┌▼─────────────────────────────────────┐    │
+│  │  Drizzle ORM│  │         AI 层 (invokeLLM)             │    │
+│  │  + MySQL2   │  │  OpenAI Compatible API                │    │
+│  └──────┬──────┘  │  GPT-4o / Claude / DeepSeek / Qwen   │    │
+│         │          └──────────────────────────────────────┘    │
+└─────────┼───────────────────────────────────────────────────────┘
+          │
+┌─────────▼───────────────────────────────────────────────────────┐
+│                      数据层                                       │
+│  ┌────────────────┐  ┌─────────────────┐  ┌──────────────────┐  │
+│  │  TiDB / MySQL  │  │   S3 文件存储    │  │  系统设置 KV 存储 │  │
+│  │  (13张业务表)  │  │  (构建产物/报告) │  │  (AI配置/偏好)   │  │
+│  └────────────────┘  └─────────────────┘  └──────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-Framework plumbing (OAuth, context, Vite bridge) lives under `server/_core`.
+### 数据流说明
+
+系统采用前后端分离架构，前端通过 tRPC 与后端进行类型安全的通信。所有数据库操作通过 Drizzle ORM 执行，AI 调用通过统一的 `invokeLLM` 封装层完成，支持运行时切换模型配置。文件存储（构建产物、导出报告）使用 S3 兼容存储服务。
 
 ---
 
-## File Structure
+## 技术栈
+
+| 层级 | 技术 | 版本 | 用途 |
+|------|------|------|------|
+| **前端框架** | React | 19.x | UI 渲染与状态管理 |
+| **UI 组件** | shadcn/ui + Radix UI | latest | 无障碍组件库 |
+| **样式** | Tailwind CSS | 4.x | 原子化 CSS |
+| **代码编辑器** | Monaco Editor | 0.55.x | 多语言代码编辑 |
+| **数据可视化** | Recharts | 2.x | 图表与数据展示 |
+| **RPC 框架** | tRPC | 11.x | 类型安全 API |
+| **数据查询** | React Query | 5.x | 缓存与异步状态 |
+| **路由** | Wouter | 3.x | 客户端路由 |
+| **后端框架** | Express | 4.x | HTTP 服务器 |
+| **ORM** | Drizzle ORM | 0.44.x | 数据库操作 |
+| **数据库** | TiDB / MySQL | 8.x | 持久化存储 |
+| **运行时** | Node.js | 22.x | 服务端运行环境 |
+| **语言** | TypeScript | 5.9 | 全栈类型安全 |
+| **测试** | Vitest | 2.x | 单元测试 |
+| **构建** | Vite | 7.x | 前端构建工具 |
+| **AI 层** | OpenAI SDK | compatible | LLM 调用封装 |
+
+---
+
+## 功能模块
+
+### 1. 统计概览 (`/overview`)
+
+统计概览模块提供平台运行状态的全局视图，包含以下核心功能：
+
+- **关键指标卡片**：实时展示项目总数、活跃项目数、构建成功率、载荷总数、AI 调用次数和 Token 消耗，使用 CountUp 动态数字动效
+- **AI 调用趋势图**：双轴 AreaChart 展示近7天调用次数与 Token 消耗对比
+- **载荷分布图表**：PieChart 展示载荷类型分布（Shellcode/EXE/DLL/Script），BarChart 展示平台架构分布
+- **构建统计**：本周构建成功/失败柱状图与成功率趋势折线图
+- **操作时间线**：最近操作记录，关联模块图标与状态颜色
+- **快捷操作面板**：9宫格快捷入口，支持跨模块跳转
+
+**数据来源**：所有统计数据通过 `trpc.overview.*` 路由从数据库实时查询，有数据时展示真实数据，无数据时展示演示数据。
+
+### 2. 项目管理 (`/projects`)
+
+项目管理模块支持渗透测试项目的全生命周期管理：
+
+- **项目创建**：两步骤向导（基本信息 + 成员权限），支持名称、平台（Windows/Linux/macOS/跨平台）、语言（Go/C/C++/Python/Rust/PowerShell）、描述和标签配置
+- **成员权限管理**：三级权限体系（只读/编辑/管理员），搜索添加成员，头像权限徽章可视化，项目卡片展示成员头像组
+- **项目操作**：归档、删除、克隆、ZIP 导出/导入
+- **构建成功率**：每个项目卡片展示构建成功率进度条
+- **视图切换**：网格视图与列表视图切换
+- **搜索过滤**：按状态、平台、语言多维度过滤
+
+### 3. 代码编辑 (`/editor`)
+
+代码编辑模块基于 Monaco Editor 提供专业级代码编辑体验：
+
+- **项目文件树**：左侧显示当前项目名称（含平台/语言徽章）和文件树，支持项目切换下拉
+- **多标签编辑**：多文件同时打开，标签页按语言着色
+- **语法高亮**：支持 Go/C/C++/Python/Rust/PowerShell/Assembly/Makefile
+- **AI 内联补全**：1.2秒防抖触发，幽灵文字装饰器预览，Tab 键接受，ESC 取消
+- **右键 AI 菜单**：选中代码后右键触发 AI 操作（解释/重写/混淆/反混淆/安全审计）
+- **代码片段库**：内置 Shellcode Loader、进程注入、AMSI Bypass 等常用片段，按分类过滤
+- **内嵌终端**：模拟 Shell 环境，支持 go build/gcc 等构建命令
+- **Git 面板**：变更文件列表、提交信息输入
+- **文件持久化**：文件内容保存到数据库，跨会话保持
+
+### 4. 载荷管理 (`/payloads`)
+
+载荷管理模块提供完整的载荷生成与管理能力：
+
+- **载荷生成向导**：4步骤向导（基本配置 → 监听配置 → 混淆加密 → 确认生成），支持 OS/架构/类型/监听类型/LHOST/LPORT/编码/混淆/加密全配置
+- **免杀评分可视化**：RadialBar 环形图展示免杀率，风险等级色带（绿/黄/红）
+- **载荷变形**：一键生成同功能不同特征的变形版本
+- **版本历史对比**：免杀率趋势 AreaChart + 检出数 LineChart，版本列表时间线，参数差异对比（编码/混淆/加密/端口），改善百分比指示器
+- **分类过滤**：按 OS、架构、类型、收藏多维度过滤
+- **VirusTotal 集成**：支持配置 API Key 进行真实免杀评分
+
+### 5. 模板管理 (`/templates`)
+
+模板管理模块提供代码模板库与 MITRE ATT&CK 映射：
+
+- **内置模板库**：5类内置模板（注入/提权/横向移动/持久化/信息收集），含完整代码骨架
+- **MITRE ATT&CK 矩阵**：9个战术列 × 5个技术格的交互式热力图，红色标注有模板覆盖的技术，点击格子直接筛选对应模板，覆盖率圆环统计
+- **模板参数化**：变量占位符 `{{PARAM_NAME}}` 替换，参数配置 Tab，实时预览结果
+- **自定义模板**：创建向导支持代码编辑器、参数定义、MITRE 映射
+- **搜索高亮**：关键词高亮匹配
+- **版本历史**：模板修改记录追踪
+
+**内置模板列表：**
+
+| 模板名称 | 分类 | 平台 | MITRE ATT&CK |
+|---------|------|------|-------------|
+| Process Injection - Classic | 注入 | Windows/C | T1055 |
+| Reverse Shell - PowerShell | 其他 | Windows/PS | T1059.001 |
+| Privilege Escalation - Token | 提权 | Windows/C | T1134.001 |
+| Persistence - Registry Run Key | 持久化 | Windows/C | T1547.001 |
+| Lateral Movement - SMB PTH | 横向移动 | Windows/Python | T1550.002 |
+
+### 6. 构建测试 (`/builds`)
+
+构建测试模块提供多平台构建流水线管理：
+
+- **项目选择器**：下拉选取项目管理中的真实项目，显示项目信息，按项目过滤构建记录
+- **平台配置**：支持 Windows x64/x86、Linux x64/ARM64、macOS x64/ARM64
+- **构建流水线**：4步骤自动执行（编译 → 混淆 → 打包 → 测试），实时状态可视化
+- **构建日志**：步骤详情弹窗，完整日志输出
+- **产物管理**：SHA256 哈希、文件大小、免杀检测结果
+- **构建分析**：本周构建统计柱状图 + 成功率趋势折线图
+- **自动轮询**：运行中的构建每2秒自动刷新状态
+
+**构建流水线步骤：**
 
 ```
-client/
-  public/         ← Small configuration files ONLY (favicon.ico, robots.txt). DO NOT put images/media here.
-  src/
-    pages/        ← Page-level components
-    components/   ← Reusable UI & shadcn/ui
-    contexts/     ← React contexts
-    hooks/        ← Custom hooks
-    lib/trpc.ts   ← tRPC client
-    App.tsx       ← Routes & layout
-    main.tsx      ← Providers
-    index.css     ← global style
-drizzle/          ← Schema & migrations
-server/
-  db.ts           ← Query helpers
-  routers.ts      ← tRPC procedures
-storage/          ← S3 helpers
-shared/           ← Shared constants & types
+编译 (Compile) → 混淆 (Obfuscate) → 打包 (Package) → 测试 (Test)
 ```
 
-Only touch the files under "←" markers. Anything under `server/_core` or other tooling directories is framework-level—avoid editing unless you are extending the infrastructure.
+### 7. 智能助手 (`/assistant`)
 
-### ⚠️ Handling Images & Media
+智能助手模块提供专业的 AI 对话能力：
 
-**DO NOT** store images, videos, or large assets in `client/public/` or `client/src/assets/`. Local media files will cause deployment timeouts.
+- **真实 AI 对话**：调用 `invokeLLM` 接口，支持 GPT-4o/Claude/DeepSeek/Qwen 等模型，AI 配置与系统设置打通
+- **5种专项模式**：通用对话/代码生成/代码审计/漏洞利用/报告生成，每种模式有专属 System Prompt
+- **代码块提取**：AI 回复自动识别代码块，显示「保存代码到项目」按钮
+- **保存到项目**：弹窗支持新建项目或选已有项目，可编辑文件名，多文件勾选，调用 `saveFile` API
+- **AI 工具调用**：可直接触发新建载荷、搜索模板、执行构建等跨模块操作
+- **多会话管理**：左侧会话列表，支持命名和归档
+- **上下文感知**：自动注入当前打开的文件/项目信息
+- **对话导出**：导出为 Markdown 文件
+- **快捷提示词**：6种预设场景（Windows Shell/Log4Shell/代码审计/渗透报告/提权分析/横向移动）
 
-**Required workflow:**
-1. Upload assets using the CLI: `manus-upload-file --webdev path/to/image.png`
-2. Use the returned storage path directly in your code: `<img src="/manus-storage/image_a1b2c3d4.png" />`
-3. Store the original local file in `/home/ubuntu/webdev-static-assets/` (outside the project directory)
+### 8. 系统设置 (`/settings`)
 
-Only small configuration files like `favicon.ico`, `robots.txt`, and `manifest.json` belong in `client/public/`.
+系统设置模块提供平台配置管理：
 
-Files in `client/public` are available at the root of your site—reference them with absolute paths (`/robots.txt`, etc.) from HTML templates, JSX, or meta tags.
-
----
-
-## Authentication Flow
-
-- Manus OAuth completes at `/api/oauth/callback` and drops a session cookie.
-- Each request to `/api/trpc` builds context via `server/_core/context.ts`, making the current user available as `ctx.user`.
-- Wrap protected logic in `protectedProcedure`; public access uses `publicProcedure`.
-- Frontend reads auth state with `trpc.auth.me.useQuery()` and invokes `trpc.auth.logout.useMutation()`—no cookie plumbing required.
-
----
-
-## Environment Variables
-
-Available pre-defined system envs:
-- `DATABASE_URL`: MySQL/TiDB connection string
-- `JWT_SECRET`: Session cookie signing secret
-- `VITE_APP_ID`: Manus OAuth application ID
-- `OAUTH_SERVER_URL`: Manus OAuth backend base URL
-- `VITE_OAUTH_PORTAL_URL`: Manus login portal URL (frontend)
-- `OWNER_OPEN_ID`, `OWNER_NAME`: Owner's info
-- `BUILT_IN_FORGE_API_URL`: Manus built-in apis (includes llm, storage, data_api, notification, etc...)
-- `BUILT_IN_FORGE_API_KEY`: Bearer token used by Manus built-in apis (server-side)
-- `VITE_FRONTEND_FORGE_API_KEY`: Bearer token for frontend access to Manus built-in apis
-- `VITE_FRONTEND_FORGE_API_URL`: Manus built-in apis URL for frontend
-
-Do not edit these directly in code or commit `.env` files.
-The envs above are system envs, when use env in website code, refer `server/_core/env.ts` for available list.
+- **AI 模型配置**：API Key（加密显示）、Base URL、模型选择（GPT-4o/Claude/DeepSeek/Qwen）、Temperature 滑块、Max Tokens、流式响应开关，配置持久化到数据库并被 AI 路由读取
+- **编译环境**：本地工具链路径（GCC/Go/Rust），远程 SSH 构建服务器（主机/端口/用户名/密钥路径），连接测试
+- **外部集成**：VirusTotal API Key 验证，代理设置（SOCKS5/HTTP/HTTPS）
+- **编辑器偏好**：字体、主题、字体大小、自动换行、小地图、连字、自动保存
+- **用户管理**：成员列表（在线状态、权限级别），邀请成员
+- **审计日志**：所有操作记录，按模块颜色分类，含 AI 生成 Token 数
+- **数据备份**：全量备份导出/恢复，审计日志 CSV 导出
 
 ---
 
-## Frontend Workflow
+## 快速开始
 
-1. Choose a design style before you write any frontend code according to Design Guide (color, font, shadow, art style). Remember to edit `client/src/index.css` for global theming and add needed font using google font cdn in `client/index.html`.
-2. Design the layout and navigation structure based on app purpose. Establish navigation in App.tsx accordingly:
-  - **Personal tools & internal dashboards** (finance trackers, task managers, admin panels, personal finance apps, analytics): Use DashboardLayout with sidebar navigation for consistent experience.
-  - **Public-facing products** (marketing sites, e-commerce, communities): Design custom navigation (top nav, contextual nav) and landing page to attract users.
-3. Start by updating `client/src/pages/Home.tsx` (the landing page shell) using shadcn/ui components to introduce links, CTAs, or feature entry points. 
-4. Create or update additional components under `client/src/pages/FeatureName.tsx`, continuing to leverage shadcn/ui + Tailwind for consistent styling.
-5. Register the route (or navigation entry) in `client/src/App.tsx`.
-6. Read data with `const { data, isLoading } = trpc.feature.useQuery(params);`.
-7. Mutate data with `trpc.feature.useMutation()`. Use optimistic updates for list operations, toggles, and profile edits. For critical operations (payments, auth), use `invalidate` with loading states.
-8. Use `useAuth()` for current user state, login URL from `getLoginUrl()`, and avoid direct cookie handling.
-9. Handle loading/empty/error states in the UI—tRPC already surfaces typed responses and errors.
+### 前置要求
 
----
+- Node.js >= 22.0
+- pnpm >= 10.0
+- MySQL 8.0 或 TiDB
 
-## Frontend Development Guidelines
+### 安装依赖
 
-**tRPC & Data Management:**
-- Use `trpc.*.useQuery/useMutation` for all backend calls—never introduce Axios/fetch wrappers.
-- **Use optimistic updates for instant feedback**: ideal for adding/editing/deleting list items, toggling states, updating profiles. Use `onMutate` to update cache, `onError` to rollback (The onMutate/onError/onSettled pattern). For critical operations (payments, auth), prefer `invalidate` with explicit loading states.
-- When using `invalidate` as fallback: call `trpc.useUtils().feature.invalidate()` in mutation's `onSuccess`.
-- Auth state comes from `useAuth()`; do not manipulate cookies manually.
-
-**UI & Styling:**
-- Prefer shadcn/ui components for interactions to keep a modern, consistent look; import from `@/components/ui/*` (e.g., `button`, `card`, `dialog`).
-- Compose Tailwind utilities with component variants for layout and states; avoid excessive custom CSS. Use built-in `variant`, `size`, etc. where available.
-- Preserve design tokens: keep the `@layer base` rules in `client/src/index.css`. Utilities like `border-border` and `font-sans` depend on them.
-- Consistent design language: use spacing, radius, shadows, and typography via tokens. Extract shared UI into `components/` for reuse instead of copy‑paste.
-- Accessibility and responsiveness: keep visible focus rings and ensure keyboard reachability; design mobile‑first with thoughtful breakpoints.
-- Theming: Choose dark/light theme to start with for ThemeProvider according to your design style (dark or light bg), then manage colors pallette with CSS variables in `client/src/index.css` instead of hard‑coding to keep global consistency.
-- Micro‑interactions and empty states: add motion, empty states, and icons tastefully to improve quality without distracting from content.
-- Navigation: For internal tools/admin panels, use persistent sidebar. For public-facing apps, design navigation based on content structure (top nav, side nav, or contextual)—ensure clear escape routes from all pages.
-- Placeholder UI elements: When adding structural placeholders (nav items, table actions) for not-yet-implemented features, show toast on click ("Feature coming soon"). Inform user which elements are placeholders when presenting work.
-
-**React Best Practices:**
-- Never call setState/navigation in render phase → wrap in `useEffect`
-
-**Customized Defaults:**
-This template customizes some Tailwind/shadcn defaults for simplified usage:
-- `.container` is customized to auto-center and add responsive padding (see `index.css`). Use directly without `mx-auto`/`px-*`. For custom widths, use `max-w-*` with `mx-auto px-4`.
-- `.flex` is customized to have `min-width:0` and `min-height:0` by default
-- `button` variant `outline` uses transparent background (not `bg-background`). Add bg color class manually if needed.
-
----
-
-## 🎨 Design Guide
-
-When generating frontend UI, avoid generic patterns that lack visual distinction:
-- Avoid generic full-page centered layouts—prefer asymmetric/sidebar/grid structures for landing pages and dashboards
-- Avoid applying dashboard/sidebar patterns to public-facing apps (forums, communities, e-commerce)—reserve those for internal tools
-- When user provides vague requirements, make creative design decisions (choose specific color palette, typography, layout approach)
-- Prioritize visual diversity: combine different design systems (e.g., one color scheme + different typography + another layout principle)
-- For landing pages: prefer asymmetric layouts, specific color values (not just "blue"), and textured backgrounds over flat colors
-- For dashboards: use defined spacing systems, soft shadows over borders, and accent colors for hierarchy
-
----
-
-## Animation Guide
-
-Bake motion taste in from the first line of code. Snappy, physically intuitive interactions are not a polish pass — they are part of the initial build.
-- Decide whether to animate at all: keyboard-initiated actions (command palettes, shortcuts) must be instant — never animate them. High-frequency interactions (hover, list nav) should be minimal. Reserve richer motion for occasional events (modals, drawers, toasts) and rare delight moments (onboarding).
-- Keep UI animations under 300ms. A 180ms dropdown feels significantly better than a 400ms one. Typical ranges: button press 100–160ms, tooltips 125–200ms, dropdowns 150–250ms, modals/drawers 200–500ms.
-- Use strong custom easings, not the weak CSS defaults. Default to a snappy ease-out for entering/exiting UI: `--ease-out: cubic-bezier(0.23, 1, 0.32, 1);`. For moving/morphing use `--ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);`. NEVER use `ease-in` for UI animations — it feels sluggish.
-- Buttons must feel responsive: add `transform: scale(0.97)` on `:active` with a ~160ms ease-out transition so the UI confirms it heard the user.
-- Never animate from `scale(0)` — nothing in the real world appears from nothing. Start from `scale(0.95)` combined with `opacity: 0`.
-- Origin-aware popovers/dropdowns: scale in from the trigger point (e.g. `transform-origin: var(--radix-popover-content-transform-origin)`). Modals are the exception and stay centered.
-- Prefer CSS transitions over @keyframes for dynamic UI state. Transitions can be interrupted and reversed smoothly mid-flight; keyframes restart from zero and feel broken when interrupted.
-- Only animate `transform` and `opacity` for motion — they run on the GPU and skip layout/paint. Avoid animating `width`, `height`, `padding`, `margin`, `top/left` unless absolutely necessary.
-- Stagger grouped entrances by 30–80ms per item to create a cascading reveal instead of a wall of motion.
-- Asymmetric timing for deliberate actions: hold-to-confirm should be slow and linear on press (e.g. 2s linear), but release/cancel should snap back fast (~200ms ease-out).
-- Respect `prefers-reduced-motion`: gate non-essential motion behind `@media (prefers-reduced-motion: no-preference)`.
-
----
-
-## Feature Checklist
-
-- [ ] Tables updated in `drizzle/schema.ts`, migrations pushed (`pnpm db:push`)
-- [ ] Query helper added in `server/db.ts` (returns raw Drizzle rows)
-- [ ] Procedure created in `server/routers.ts` (choose `public` vs `protected`)
-- [ ] UI calls the procedure via `trpc.*.useQuery/useMutation`
-- [ ] Success + error paths verified in the browser
-
----
-
-## Pre-built Components
-
-Before implementing UI features, check if these components already exist:
-
-Dashboard & Layout:
-- `client/src/components/DashboardLayout.tsx` - Full dashboard layout with sidebar navigation, auth handling, and user profile. Use this for any admin panel or dashboard-style app instead of building from scratch.
-- `client/src/components/DashboardLayoutSkeleton.tsx` - Loading skeleton for dashboard during auth checks
-
-Chat & Messaging:
-- `client/src/components/AIChatBox.tsx` - Full-featured chat interface with message history, streaming support, and markdown rendering. Use this for any chat/conversation UI instead of building from scratch.
-
-Maps:
-- `client/src/components/Map.tsx` - Google Maps integration with proxy authentication. Provides MapView component with onMapReady callback for initializing Google Maps services (Places, Geocoder, Directions, Drawing, etc.). All map functionality works directly in the browser.
-
-When implementing features that match these categories, MUST evaluate the component first to decide whether to use or customize it.
-
----
-
-## Internal Tools & Admin Panels
-
-For certain app types, this template provides DashboardLayout—a standardized sidebar pattern.
-
-**Use DashboardLayout for:**
-- Admin/management dashboards
-- Personal productivity apps (task managers, note-taking)
-- Analytics/monitoring tools
-
-**Do NOT use for:**
-- Public content platforms (forums, blogs, social networks)
-- E-commerce storefronts
-- Marketing/landing sites
-
-**Layout & Navigation**
-- Use `DashboardLayout` component from `client/src/components/DashboardLayout.tsx` and remove any page-level headers to avoid duplication.
-- When use DashboardLayout, read its content before making changes and preserve its core structure by default.
-
-**Role-based Access Control**
-When building apps with distinct access levels (e.g., e-commerce with public home, user account, admin panel):
-- The `user` table includes a `role` field (enum: `admin` | `user`) for identity separation
-- Use `ctx.user.role` in procedures to gate admin-only operations
-- Wrap admin-only backend logic in `adminProcedure`
-- Frontend can conditionally render navigation/routes based on `useAuth().user?.role`
-
-Example procedure pattern:
-```ts
-adminOnlyProcedure: protectedProcedure.use(({ ctx, next }) => {
-  if (ctx.user.role !== 'admin') throw new TRPCError({ code: 'FORBIDDEN' });
-  return next({ ctx });
-}),
+```bash
+git clone https://github.com/rakehellsx/penetration-tool.git
+cd penetration-tool
+pnpm install
 ```
 
-**Managing Admins**
-- To promote a user to admin, update the `role` field directly in the database via the system UI or SQL
-- If you need additional roles beyond `admin`/`user`, extend the enum in `drizzle/schema.ts` and push the migration
+### 配置环境变量
 
----
+复制环境变量模板并填写配置：
 
-## LLM Integration
-
-Use the preconfigured LLM helpers. Credentials are injected from the platform (no manual setup required).
-
-```ts
-import { invokeLLM } from "./server/_core/llm";
-
-/**
- * Simple chat completion
- * type Role = "system" | "user" | "assistant" | "tool" | "function";
- * type TextContent = {
- *   type: "text";
- *   text: string;
- * };
- *
- * type ImageContent = {
- *   type: "image_url";
- *   image_url: {
- *     url: string;
- *     detail?: "auto" | "low" | "high";
- *   };
- * };
- *
- * type FileContent = {
- *   type: "file_url";
- *   file_url: {
- *     url: string;
- *     mime_type?: "audio/mpeg" | "audio/wav" | "application/pdf" | "audio/mp4" | "video/mp4" ;
- *   };
- * };
- *
- * export type Message = {
- *   role: Role;
- *   content: string | Array<ImageContent | TextContent | FileContent>
- * };
- *
- * Supported parameters:
- * messages: Array<{
- *   role: 'system' | 'user' | 'assistant' | 'tool',
- *   content: string | { tool_call: { name: string, arguments: string } }
- * }>
- * tool_choice?: 'none' | 'auto' | 'required' | { type: 'function', function: { name: string } }
- * tools?: Tool[]
- */
-const response = await invokeLLM({
-  messages: [
-    { role: "system", content: "You are a helpful assistant." },
-    { role: "user", content: "Hello, world!" },
-  ],
-});
+```bash
+cp .env.example .env
 ```
 
-Tips
-- Always call llm functions from server-side code (e.g., inside tRPC procedures), to avoid exposing your API key.
-- You don't need to manually set the model; the helper uses a sensible default.
-- LLM responses often contain markdown. Use `<Streamdown>{content}</Streamdown>` (imported from `streamdown`) to render markdown content with proper formatting and streaming support.
+编辑 `.env` 文件，填写以下必要配置：
 
-### Structured Responses (JSON Schema)
-
-Ask the model to return structured JSON via `response_format`:
-
-```ts
-import { invokeLLM } from "./server/_core/llm";
-
-const structured = await invokeLLM({
-  messages: [
-    { role: "system", content: "You are a helpful assistant designed to output JSON." },
-    { role: "user", content: "Extract the name and age from the following text: \"My name is Alice and I am 30 years old.\"" },
-  ],
-  response_format: {
-    type: "json_schema",
-    json_schema: {
-      name: "person_info",
-      strict: true,
-      schema: {
-        type: "object",
-        properties: {
-          name: { type: "string", description: "The name of the person" },
-          age: { type: "integer", description: "The age of the person" },
-        },
-        required: ["name", "age"],
-        additionalProperties: false,
-      },
-    },
-  },
-});
-
-// The model responds with JSON content matching the schema.
-// Access via `structured.choices[0].message.content` and JSON.parse if needed.
-```
-The helpers mirror the Python SDK semantics but produce JavaScript-first code, keeping credentials inside the server and ensuring every environment has access to the same token.
-
----
-
-## Voice Transcription Integration
-
-Use the preconfigured voice transcription helper that converts speech to text using Whisper API, no manual setup required.
-
-Example usage:
-```ts
-import { transcribeAudio } from "./server/_core/voiceTranscription";
-
-const result = await transcribeAudio({
-  audioUrl: "https://storage.example.com/audio/recording.mp3",
-  language: "en", // Optional: helps improve accuracy
-  prompt: "Transcribe meeting notes" // Optional: context hint
-});
-
-// Returns native Whisper API response
-// result.text - Full transcription
-// result.language - Detected language (ISO-639-1)
-// result.segments - Timestamped segments with metadata
+```env
+DATABASE_URL=mysql://user:password@localhost:3306/pentest_db
+JWT_SECRET=your-jwt-secret-key
+VITE_APP_ID=your-app-id
+BUILT_IN_FORGE_API_KEY=your-forge-api-key
+BUILT_IN_FORGE_API_URL=https://api.example.com
 ```
 
-Tips
-- Accepts URL to pre-uploaded audio file
-- 16MB file size limit enforced during transcription, size flag to be set by frontend
-- Supported formats: webm, mp3, wav, ogg, m4a
-- Returns native Whisper API response with rich metadata
-- Frontend should handle audio capture, storage upload, and size validation
+### 数据库初始化
 
----
+```bash
+# 生成迁移文件
+pnpm drizzle-kit generate
 
-## Image Generation Integration
-
-Use the preconfigured image generation helper that connects to the internal ImageService, no manual setup required.
-
-Example usage:
-```ts
-import { generateImage } from "./server/_core/imageGeneration.ts";
-
-const { url: imageUrl } = await generateImage({
-  prompt: "A serene landscape with mountains"
-});
-// For editing:
-const { url: imageUrl } = await generateImage({
-  prompt: "Add a rainbow to this landscape",
-  originalImages: [{
-    url: "https://example.com/original.jpg",
-    mimeType: "image/jpeg"
-  }]
-});
+# 应用迁移
+pnpm drizzle-kit migrate
 ```
 
-Tips
-- Always call from server-side code (e.g., inside tRPC procedures) to avoid exposing API keys
-- Image generation can take 5-20 seconds, implement proper loading states
-- Implement proper error handling as image generation can fail
+### 启动开发服务器
 
----
-
-## ☁️ File Storage
-
-Use the preconfigured storage helpers in `server/storage.ts`. Credentials are injected from the platform (no manual setup required). Files are stored securely and served via the built-in `/manus-storage/` path — no manual URL management needed.
-
-```ts
-import { storagePut } from "./server/storage";
-
-// Upload bytes to storage
-const fileKey = `${userId}-files/${fileName}.png`
-const { key, url } = await storagePut(
-  fileKey,
-  fileBuffer, // Buffer | Uint8Array | string
-  "image/png"
-);
-// url = "/manus-storage/{key}" — use directly in frontend code
-// key = unique storage key — save in database
+```bash
+pnpm dev
 ```
 
-Tips
-- Save the `key` or `url` in your database; use storage for the actual file bytes. This applies to all files including images, documents, and media.
-- For file uploads, have the client POST to your server, then call `storagePut` from your backend.
-- The returned `url` (e.g. `/manus-storage/...`) is automatically served via signed redirect — no manual URL signing needed.
-- To delete a file, drop its `key` from your DB and any UI references — the key is the only way to reach the object, so an unreferenced file is effectively gone. Do not implement a helper to remove the underlying object; the template's storage layer does not expose a delete endpoint.
+访问 `http://localhost:3000` 即可使用系统。
+
+### 运行测试
+
+```bash
+pnpm test
+```
 
 ---
 
-## 🗺️ Maps Integration
+## 环境变量
 
-**CRITICAL: The Manus proxy provides FULL access to ALL Google Maps features** - including advanced drawing, heatmaps, Street View, all layers, Places API, etc. Do ask users for Google Map API keys - authentication is automatic.
+| 变量名 | 必填 | 说明 |
+|--------|------|------|
+| `DATABASE_URL` | ✅ | MySQL/TiDB 连接字符串 |
+| `JWT_SECRET` | ✅ | Session Cookie 签名密钥 |
+| `VITE_APP_ID` | ✅ | OAuth 应用 ID |
+| `OAUTH_SERVER_URL` | ✅ | OAuth 后端服务地址 |
+| `VITE_OAUTH_PORTAL_URL` | ✅ | OAuth 登录门户地址 |
+| `BUILT_IN_FORGE_API_KEY` | ✅ | 内置 AI API 密钥（服务端） |
+| `BUILT_IN_FORGE_API_URL` | ✅ | 内置 AI API 地址 |
+| `VITE_FRONTEND_FORGE_API_KEY` | ✅ | 内置 AI API 密钥（前端） |
+| `VITE_FRONTEND_FORGE_API_URL` | ✅ | 内置 AI API 地址（前端） |
+| `OWNER_OPEN_ID` | ⬜ | 平台所有者 OpenID |
+| `OWNER_NAME` | ⬜ | 平台所有者名称 |
 
-**Default: Use Frontend SDK** - Import MapView from `client/src/components/Map.tsx` and initialize ANY Google Maps service (geocoding, directions, places, drawing, visualization, geometry, etc.) in the onMapReady callback. 
-
-**Use Backend API only when:**
-- Persisting data (save routes/locations to database)
-- Bulk operations (1000+ addresses)
-- Server-side needs (caching, scheduled jobs, hiding business logic)
-
-**Implementation:**
-- Frontend: See `client/src/components/Map.tsx` for component usage - ALL Google Maps JavaScript API features work
-- Backend: Create tRPC procedures using `makeRequest` from `server/_core/map.ts`
-
-NEVER use external map libraries or request API keys from users - the Manus proxy handles everything automatically with no feature limitations.
-
-
----
-
-## ☁️ Data API
-
-When you need external data, use the omni_search with search_type = 'api' to see there's any built-in api available in Manus API Hub access. You only have to connect other api if there's no suitable built-in api available.
+> **注意**：AI 模型的 API Key 和模型选择可在系统运行后通过「系统设置 → AI 配置」页面动态配置，无需重启服务。
 
 ---
 
-## Owner Notifications
+## 部署指南
 
-This template already ships with a `notifyOwner({ title, content })` helper (`server/_core/notification.ts`) and a protected tRPC mutation at `trpc.system.notifyOwner`. Use it whenever backend logic needs to push an operational update to the Manus project owner—common triggers are new form submissions, survey feedback, or workflow results.
+### 方式一：Manus 平台部署（推荐）
 
-1. On the server, call `await notifyOwner({ title, content })` or reuse the provided `system.notifyOwner` mutation from jobs/webhooks (`trpc.system.notifyOwner.useMutation()` on the client).
-2. Handle the boolean return (`true` on success, `false` if the upstream service is temporarily unavailable) to decide whether you need a fallback channel.
+本项目已针对 Manus 平台优化，支持一键部署：
 
-Keep this channel for owner-facing alerts; end-user messaging should flow through your app-specific systems.
+1. 在 Manus 平台创建 Checkpoint
+2. 点击管理界面右上角的 **Publish** 按钮
+3. 系统自动完成构建和部署
+4. 访问分配的域名（如 `pentestdev-zwtjag7j.manus.space`）
 
----
+**Manus 平台特性支持：**
+- 内置数据库（TiDB）
+- 内置文件存储（S3 兼容）
+- 内置 AI API（无需额外配置 OpenAI Key）
+- 自动 HTTPS 和 CDN
 
-## ⏱ Datetime & Timezone
+### 方式二：Docker 部署
 
-Persistence: Store all business timestamps as UTC-based Unix timestamps (milliseconds since epoch) at the database and API layer. Do not store client-local, timezone-dependent, or string-based timestamps unless explicitly required as separate fields.
-Frontend display: In React components, always convert UTC timestamps to the user’s local timezone for display e.g. new Date(utcTimestamp).toLocaleString(). Keep all internal state and API interactions in UTC timestamps to avoid drift and confusion.
+```bash
+# 构建镜像
+docker build -t pentest-dev-platform .
 
----
+# 运行容器
+docker run -d \
+  -p 3000:3000 \
+  -e DATABASE_URL="mysql://..." \
+  -e JWT_SECRET="..." \
+  --name pentest-platform \
+  pentest-dev-platform
+```
 
-## Tips
+### 方式三：手动部署（生产环境）
 
-- Keep router files under ~150 lines—split into `server/routers/<feature>.ts` once they grow.
-- Show loading states at component level (spinners, skeletons) rather than blocking entire pages—keeps the app feeling responsive.
+```bash
+# 1. 构建前端
+pnpm build
 
----
+# 2. 启动生产服务
+NODE_ENV=production node dist/index.js
+```
 
-## Core File References
+**Nginx 反向代理配置：**
 
-Note: All TODO comments are remarks for the agent (you), not for the user.
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
 
-`package.json`
-```ts
-{
-  "name": "pentest-dev-platform",
-  "version": "1.0.0",
-  "type": "module",
-  "license": "MIT",
-  "scripts": {
-    "dev": "NODE_ENV=development tsx watch server/_core/index.ts",
-    "build": "vite build && esbuild server/_core/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist",
-    "start": "NODE_ENV=production node dist/index.js",
-    "check": "tsc --noEmit",
-    "format": "prettier --write .",
-    "test": "vitest run",
-    "db:push": "drizzle-kit generate && drizzle-kit migrate"
-  },
-  "dependencies": {
-    "@aws-sdk/client-s3": "^3.693.0",
-    "@aws-sdk/s3-request-presigner": "^3.693.0",
-    "@hookform/resolvers": "^5.2.2",
-    "@radix-ui/react-accordion": "^1.2.12",
-    "@radix-ui/react-alert-dialog": "^1.1.15",
-    "@radix-ui/react-aspect-ratio": "^1.1.7",
-    "@radix-ui/react-avatar": "^1.1.10",
-    "@radix-ui/react-checkbox": "^1.3.3",
-    "@radix-ui/react-collapsible": "^1.1.12",
-    "@radix-ui/react-context-menu": "^2.2.16",
-    "@radix-ui/react-dialog": "^1.1.15",
-    "@radix-ui/react-dropdown-menu": "^2.1.16",
-    "@radix-ui/react-hover-card": "^1.1.15",
-    "@radix-ui/react-label": "^2.1.7",
-    "@radix-ui/react-menubar": "^1.1.16",
-    "@radix-ui/react-navigation-menu": "^1.2.14",
-    "@radix-ui/react-popover": "^1.1.15",
-    "@radix-ui/react-progress": "^1.1.7",
-    "@radix-ui/react-radio-group": "^1.3.8",
-    "@radix-ui/react-scroll-area": "^1.2.10",
-    "@radix-ui/react-select": "^2.2.6",
-    "@radix-ui/react-separator": "^1.1.7",
-    "@radix-ui/react-slider": "^1.3.6",
-    "@radix-ui/react-slot": "^1.2.3",
-    "@radix-ui/react-switch": "^1.2.6",
-    "@radix-ui/react-tabs": "^1.1.13",
-    "@radix-ui/react-toggle": "^1.1.10",
-    "@radix-ui/react-toggle-group": "^1.1.11",
-    "@radix-ui/react-tooltip": "^1.2.8",
-    "@tanstack/react-query": "^5.90.2",
-    "@trpc/client": "^11.6.0",
-    "@trpc/react-query": "^11.6.0",
-    "@trpc/server": "^11.6.0",
-    "axios": "^1.12.0",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "cmdk": "^1.1.1",
-    "cookie": "^1.0.2",
-    "date-fns": "^4.1.0",
-    "dotenv": "^17.2.2",
-    "drizzle-orm": "^0.44.5",
-    "embla-carousel-react": "^8.6.0",
-    "express": "^4.21.2",
-    "framer-motion": "^12.23.22",
-    "input-otp": "^1.4.2",
-    "jose": "6.1.0",
-    "lucide-react": "^0.453.0",
-    "mysql2": "^3.15.0",
-    "nanoid": "^5.1.5",
-    "next-themes": "^0.4.6",
-    "react": "^19.2.1",
-    "react-day-picker": "^9.11.1",
-    "react-dom": "^19.2.1",
-    "react-hook-form": "^7.64.0",
-    "react-resizable-panels": "^3.0.6",
-    "recharts": "^2.15.2",
-    "sonner": "^2.0.7",
-    "streamdown": "^1.4.0",
-    "superjson": "^1.13.3",
-    "tailwind-merge": "^3.3.1",
-    "tailwindcss-animate": "^1.0.7",
-    "vaul": "^1.1.2",
-    "wouter": "^3.3.5",
-    "zod": "^4.1.12"
-  },
-  "devDependencies": {
-    "@builder.io/vite-plugin-jsx-loc": "^0.1.1",
-    "@tailwindcss/typography": "^0.5.15",
-    "@tailwindcss/vite": "^4.1.3",
-    "@types/express": "4.17.21",
-    "@types/google.maps": "^3.58.1",
-    "@types/node": "^24.7.0",
-    "@types/react": "^19.2.1",
-    "@types/react-dom": "^19.2.1",
-    "@vitejs/plugin-react": "^5.0.4",
-    "add": "^2.0.6",
-    "autoprefixer": "^10.4.20",
-    "drizzle-kit": "^0.31.4",
-    "esbuild": "^0.25.0",
-    "pnpm": "^10.15.1",
-    "postcss": "^8.4.47",
-    "prettier": "^3.6.2",
-    "tailwindcss": "^4.1.14",
-    "tsx": "^4.19.1",
-    "tw-animate-css": "^1.4.0",
-    "typescript": "5.9.3",
-    "vite": "^7.1.7",
-    "vite-plugin-manus-runtime": "^0.0.57",
-    "vitest": "^2.1.4"
-  },
-  "packageManager": "pnpm@10.4.1+sha512.c753b6c3ad7afa13af388fa6d808035a008e30ea9993f58c6663e2bc5ff21679aa834db094987129aa4d488b86df57f7b634981b2f827cdcacc698cc0cfb88af",
-  "pnpm": {
-    "patchedDependencies": {
-      "wouter@3.7.1": "patches/wouter@3.7.1.patch"
-    },
-    "overrides": {
-      "tailwindcss>nanoid": "3.3.7"
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
     }
-  }
 }
 ```
 
-`drizzle/schema.ts`
-```ts
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+### 数据库配置建议
 
-/**
- * Core user table backing auth flow.
- * Extend this file with additional tables as your product grows.
- * Columns use camelCase to match both database fields and generated types.
- */
-export const users = mysqlTable("users", {
-  /**
-   * Surrogate primary key. Auto-incremented numeric value managed by the database.
-   * Use this for relations between tables.
-   */
-  id: int("id").autoincrement().primaryKey(),
-  /** Manus OAuth identifier (openId) returned from the OAuth callback. Unique per user. */
-  openId: varchar("openId", { length: 64 }).notNull().unique(),
-  name: text("name"),
-  email: varchar("email", { length: 320 }),
-  loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
-  createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
-  lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
-});
+生产环境建议使用 TiDB Cloud 或自建 MySQL 8.0+：
 
-export type User = typeof users.$inferSelect;
-export type InsertUser = typeof users.$inferInsert;
+```sql
+-- 创建数据库
+CREATE DATABASE pentest_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-// TODO: Add your tables here
+-- 创建用户
+CREATE USER 'pentest'@'%' IDENTIFIED BY 'your-password';
+GRANT ALL PRIVILEGES ON pentest_db.* TO 'pentest'@'%';
+FLUSH PRIVILEGES;
 ```
-
-`server/db.ts`
-```ts
-import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
-import { ENV } from './_core/env';
-
-let _db: ReturnType<typeof drizzle> | null = null;
-
-// Lazily create the drizzle instance so local tooling can run without a DB.
-export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
-    try {
-      _db = drizzle(process.env.DATABASE_URL);
-    } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
-      _db = null;
-    }
-  }
-  return _db;
-}
-
-export async function upsertUser(user: InsertUser): Promise<void> {
-  if (!user.openId) {
-    throw new Error("User openId is required for upsert");
-  }
-
-  const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
-    return;
-  }
-
-  try {
-    const values: InsertUser = {
-      openId: user.openId,
-    };
-    const updateSet: Record<string, unknown> = {};
-
-    const textFields = ["name", "email", "loginMethod"] as const;
-    type TextField = (typeof textFields)[number];
-
-    const assignNullable = (field: TextField) => {
-      const value = user[field];
-      if (value === undefined) return;
-      const normalized = value ?? null;
-      values[field] = normalized;
-      updateSet[field] = normalized;
-    };
-
-    textFields.forEach(assignNullable);
-
-    if (user.lastSignedIn !== undefined) {
-      values.lastSignedIn = user.lastSignedIn;
-      updateSet.lastSignedIn = user.lastSignedIn;
-    }
-    if (user.role !== undefined) {
-      values.role = user.role;
-      updateSet.role = user.role;
-    } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
-    }
-
-    if (!values.lastSignedIn) {
-      values.lastSignedIn = new Date();
-    }
-
-    if (Object.keys(updateSet).length === 0) {
-      updateSet.lastSignedIn = new Date();
-    }
-
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
-      set: updateSet,
-    });
-  } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
-    throw error;
-  }
-}
-
-export async function getUserByOpenId(openId: string) {
-  const db = await getDb();
-  if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
-    return undefined;
-  }
-
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-
-  return result.length > 0 ? result[0] : undefined;
-}
-
-// TODO: add feature queries here as your schema grows.
-```
-
-`server/routers.ts`
-```ts
-import { COOKIE_NAME } from "@shared/const";
-import { getSessionCookieOptions } from "./_core/cookies";
-import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
-
-export const appRouter = router({
-    // if you need to use socket.io, read and register route in server/_core/index.ts, all api should start with '/api/' so that the gateway can route correctly
-  system: systemRouter,
-  auth: router({
-    me: publicProcedure.query(opts => opts.ctx.user),
-    logout: publicProcedure.mutation(({ ctx }) => {
-      const cookieOptions = getSessionCookieOptions(ctx.req);
-      ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-      return {
-        success: true,
-      } as const;
-    }),
-  }),
-
-  // TODO: add feature routers here, e.g.
-  // todo: router({
-  //   list: protectedProcedure.query(({ ctx }) =>
-  //     db.getUserTodos(ctx.user.id)
-  //   ),
-  // }),
-});
-
-export type AppRouter = typeof appRouter;
-```
-
-`client/src/App.tsx`
-```tsx
-import { Toaster } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
-import { Route, Switch } from "wouter";
-import ErrorBoundary from "./components/ErrorBoundary";
-import { ThemeProvider } from "./contexts/ThemeContext";
-import Home from "./pages/Home";
-
-function Router() {
-  // make sure to consider if you need authentication for certain routes
-  return (
-    <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/404"} component={NotFound} />
-      {/* Final fallback route */}
-      <Route component={NotFound} />
-    </Switch>
-  );
-}
-
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
-
-function App() {
-  return (
-    <ErrorBoundary>
-      <ThemeProvider
-        defaultTheme="light"
-        // switchable
-      >
-        <TooltipProvider>
-          <Toaster />
-          <Router />
-        </TooltipProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
-  );
-}
-
-export default App;
-```
-
-`client/src/lib/trpc.ts`
-```ts
-import { createTRPCReact } from "@trpc/react-query";
-import type { AppRouter } from "../../../server/routers";
-
-export const trpc = createTRPCReact<AppRouter>();
-```
-
-`client/src/pages/Home.tsx`
-```tsx
-import { useAuth } from "@/_core/hooks/useAuth";
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { getLoginUrl } from "@/const";
-import { Streamdown } from 'streamdown';
-
-/**
- * All content in this page are only for example, replace with your own feature implementation
- * When building pages, remember your instructions in Frontend Workflow, Frontend Best Practices, Design Guide and Common Pitfalls
- */
-export default function Home() {
-  // The userAuth hooks provides authentication state
-  // To implement login/logout functionality, simply call logout() or redirect to getLoginUrl()
-  let { user, loading, error, isAuthenticated, logout } = useAuth();
-
-  // If theme is switchable in App.tsx, we can implement theme toggling like this:
-  // const { theme, toggleTheme } = useTheme();
-
-  return (
-    <div className="min-h-screen flex flex-col">
-      <main>
-        {/* Example: lucide-react for icons */}
-        <Loader2 className="animate-spin" />
-        Example Page
-        {/* Example: Streamdown for markdown rendering */}
-        <Streamdown>Any **markdown** content</Streamdown>
-        <Button variant="default">Example Button</Button>
-      </main>
-    </div>
-  );
-}
-```
-
-`server/auth.logout.test.ts`
-```ts
-import { describe, expect, it } from "vitest";
-import { appRouter } from "./routers";
-import { COOKIE_NAME } from "../shared/const";
-import type { TrpcContext } from "./_core/context";
-
-type CookieCall = {
-  name: string;
-  options: Record<string, unknown>;
-};
-
-type AuthenticatedUser = NonNullable<TrpcContext["user"]>;
-
-function createAuthContext(): { ctx: TrpcContext; clearedCookies: CookieCall[] } {
-  const clearedCookies: CookieCall[] = [];
-
-  const user: AuthenticatedUser = {
-    id: 1,
-    openId: "sample-user",
-    email: "sample@example.com",
-    name: "Sample User",
-    loginMethod: "manus",
-    role: "user",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    lastSignedIn: new Date(),
-  };
-
-  const ctx: TrpcContext = {
-    user,
-    req: {
-      protocol: "https",
-      headers: {},
-    } as TrpcContext["req"],
-    res: {
-      clearCookie: (name: string, options: Record<string, unknown>) => {
-        clearedCookies.push({ name, options });
-      },
-    } as TrpcContext["res"],
-  };
-
-  return { ctx, clearedCookies };
-}
-
-describe("auth.logout", () => {
-  it("clears the session cookie and reports success", async () => {
-    const { ctx, clearedCookies } = createAuthContext();
-    const caller = appRouter.createCaller(ctx);
-
-    const result = await caller.auth.logout();
-
-    expect(result).toEqual({ success: true });
-    expect(clearedCookies).toHaveLength(1);
-    expect(clearedCookies[0]?.name).toBe(COOKIE_NAME);
-    expect(clearedCookies[0]?.options).toMatchObject({
-      maxAge: -1,
-      secure: true,
-      sameSite: "none",
-      httpOnly: true,
-      path: "/",
-    });
-  });
-});
-```
----
-
-## Common Pitfalls
-
-### Infinite loading loops from unstable references
-**Anti-pattern:** Creating new objects/arrays in render that are used as query inputs
-```tsx
-// ❌ Bad: New Date() creates new reference every render → infinite queries
-const { data } = trpc.items.getByDate.useQuery({
-  date: new Date(), // ← New object every render!
-});
-
-// ❌ Bad: Array/object literals in query input
-const { data } = trpc.items.getByIds.useQuery({
-  ids: [1, 2, 3], // ← New array reference every render!
-});
-```
-
-**Correct approach:** Stabilize references with useState/useMemo
-```tsx
-// ✅ Good: Initialize once with useState
-const [date] = useState(() => new Date());
-const { data } = trpc.items.getByDate.useQuery({ date });
-
-// ✅ Good: Memoize complex inputs
-const ids = useMemo(() => [1, 2, 3], []);
-const { data } = trpc.items.getByIds.useQuery({ ids });
-```
-
-**Why this happens:** TRPC queries trigger when input references change. Objects/arrays created in render have new references each time, causing infinite re-fetches.
-
-### Storing file bytes in database columns
-**Anti-pattern:** Adding BLOB/BYTEA columns to store file content
-```ts
-// ❌ Bad: Database bloat and slow queries
-export const files = sqliteTable('files', {
-  content: blob('content'), // Never store file bytes
-});
-```
-
-**Correct approach:** Store S3 reference only, upload file bytes to S3
-```ts
-// ✅ Good: Store metadata + S3 reference
-export const files = sqliteTable('files', {
-  url: text('url').notNull(), // Url to reference the file in s3
-  fileKey: text('file_key').notNull(), // also save file_key for clarity
-  // optional, save other metadata if needed
-  // filename: text('filename'),
-  // mimeType: text('mime_type'),
-});
-```
-
-Use `storagePut()` to upload files (see S3 File Storage section).
-
-### Navigation dead-ends in subpages
-**Problem:** Creating nested routes without escape routes—no header nav, no sidebar, no back button.
-
-**Root cause:** Implementing individual pages before establishing global layout structure.
-
-**Solution:** Define layout wrapper in App.tsx first, then build pages inside it. For admin tools use DashboardLayout; for detail pages add back button with `router.back()`.
-
-### Invisible text from theme/color mismatches
-
-**Root cause:** Semantic colors (`bg-background`, `text-foreground`) are CSS variables that resolve based on ThemeProvider's active theme. Mismatches cause invisible text.
-
-**Two critical rules:**
-
-1. **Match theme to CSS variables:** If `defaultTheme="dark"` in App.tsx, ensure `.dark {}` in index.css has dark background + light foreground values
-2. **Always pair bg with text:** When using `bg-{semantic}`, MUST also use `text-{semantic}-foreground` (not automatic - text inherits from parent otherwise)
-
-**Quick reference:**
-```tsx
-// ✅ Theme + CSS alignment
-<ThemeProvider defaultTheme="dark">  {/* Must match .dark in index.css */}
-  <div className="bg-background text-foreground">...</div>
-</ThemeProvider>
-
-// ✅ Required class pairs
-<div className="bg-popover text-popover-foreground">...</div>
-<div className="bg-card text-card-foreground">...</div>
-<div className="bg-accent text-accent-foreground">...</div>
-```
-
-### Nested anchor tags in Link components
-**Problem:** Wrapping `<a>` tags inside another `<a>` or wouter's `<Link>` creates nested anchors and runtime errors.
-
-**Solution:** Pass children directly to Link—it already renders an `<a>` internally.
-```tsx
-// ❌ Bad: <Link><a>...</a></Link> or <a><a>...</a></a>
-// ✅ Good: <Link>...</Link> or just <a>...</a>
-```
-
-### Empty `Select.Item` values
-**Rule:** Every `<Select.Item>` must have a non-empty `value` prop—never `""`, `undefined`, or omitted.
 
 ---
 
-## Manus OAuth Best Practices
+## 项目结构
 
-**Key Rule:** Always use `window.location.origin` for redirect URLs—never hardcode domains or use `req.host`. Frontend and backend run on separate servers, so the frontend must pass its origin explicitly.
-
-**Unsupported browsers:** Safari Private Browsing, Firefox Strict ETP, Brave Aggressive Shields, or any browser blocking cookies.
-
-**Anti-patterns:**
-```ts
-// ❌ Never construct URLs from env vars or patterns
-const url = `https://${projectName}.manus.space/callback`;
-const url = `https://${process.env.APP_SUBDOMAIN}.example.com/verify`;
+```
+penetration-tool/
+├── client/                    # 前端代码
+│   ├── src/
+│   │   ├── components/        # 可复用 UI 组件
+│   │   │   ├── PentestLayout.tsx      # 主布局（侧边栏+顶栏）
+│   │   │   ├── GlobalSearch.tsx       # ⌘K 全局搜索面板
+│   │   │   ├── MitreMatrix.tsx        # MITRE ATT&CK 矩阵
+│   │   │   ├── PayloadVersionHistory.tsx  # 载荷版本历史
+│   │   │   ├── CreateTemplateDialog.tsx   # 模板创建弹窗
+│   │   │   └── ui/                    # shadcn/ui 组件
+│   │   ├── contexts/
+│   │   │   ├── AppContext.tsx          # 全局状态（跨模块联动）
+│   │   │   └── ThemeContext.tsx        # 主题管理
+│   │   ├── pages/             # 页面组件（8大模块）
+│   │   │   ├── Overview.tsx           # 统计概览
+│   │   │   ├── Projects.tsx           # 项目管理
+│   │   │   ├── CodeEditor.tsx         # 代码编辑器
+│   │   │   ├── Payloads.tsx           # 载荷管理
+│   │   │   ├── Templates.tsx          # 模板管理
+│   │   │   ├── Builds.tsx             # 构建测试
+│   │   │   ├── Assistant.tsx          # 智能助手
+│   │   │   └── SystemSettings.tsx     # 系统设置
+│   │   ├── lib/
+│   │   │   └── trpc.ts                # tRPC 客户端
+│   │   ├── App.tsx                    # 路由与布局
+│   │   └── index.css                  # 全局样式
+│   └── index.html
+├── server/                    # 后端代码
+│   ├── _core/                 # 框架核心（勿修改）
+│   │   ├── llm.ts             # AI 调用封装
+│   │   ├── context.ts         # tRPC 上下文
+│   │   └── ...
+│   ├── routers/               # tRPC 路由
+│   │   ├── overview.ts        # 统计概览路由
+│   │   ├── projects.ts        # 项目管理路由
+│   │   ├── payloads.ts        # 载荷管理路由
+│   │   ├── templates.ts       # 模板管理路由
+│   │   ├── builds.ts          # 构建测试路由
+│   │   ├── ai.ts              # AI 对话路由
+│   │   ├── settings.ts        # 系统设置路由
+│   │   └── audit.ts           # 审计日志路由
+│   ├── db.ts                  # 数据库查询助手
+│   ├── routers.ts             # 路由注册
+│   └── pentest.test.ts        # 单元测试
+├── drizzle/                   # 数据库
+│   ├── schema.ts              # 数据库 Schema（13张表）
+│   └── migrations/            # 迁移文件
+├── shared/                    # 前后端共享类型
+├── todo.md                    # 功能追踪
+├── package.json
+└── README.md
 ```
 
-**Correct approach:** This template already implements the pattern correctly:
-- `client/src/const.ts`: `getLoginUrl(returnPath?)` encodes origin + returnPath in state
-- `server/_core/oauth.ts`: `parseState()` extracts origin from state for redirects
+---
 
-**For invite/magic links:** When backend generates URLs, frontend must pass origin in the request:
-```ts
-// Frontend
-const createInvite = trpc.invites.create.useMutation();
-await createInvite.mutateAsync({ eventId: "123", origin: window.location.origin });
+## API 文档
 
-// Backend - use input.origin to build the URL
-const inviteUrl = `${input.origin}/events/${eventId}/join?token=${token}`;
+系统使用 tRPC 提供类型安全的 API，所有接口均通过 `/api/trpc` 路径访问。
+
+### 主要路由
+
+| 路由 | 类型 | 说明 |
+|------|------|------|
+| `overview.stats` | Query | 获取统计数据 |
+| `overview.aiTrend` | Query | AI 使用趋势 |
+| `overview.payloadStats` | Query | 载荷分布统计 |
+| `projects.list` | Query | 项目列表（支持过滤） |
+| `projects.create` | Mutation | 创建项目 |
+| `projects.saveFile` | Mutation | 保存项目文件 |
+| `payloads.list` | Query | 载荷列表 |
+| `payloads.create` | Mutation | 生成载荷 |
+| `payloads.morph` | Mutation | 载荷变形 |
+| `templates.list` | Query | 模板列表 |
+| `templates.seedBuiltin` | Mutation | 加载内置模板 |
+| `builds.list` | Query | 构建记录 |
+| `builds.create` | Mutation | 触发构建 |
+| `ai.chat` | Mutation | AI 对话（真实 LLM） |
+| `ai.codeOperation` | Mutation | 代码操作（解释/混淆等） |
+| `ai.complete` | Mutation | AI 内联补全 |
+| `settings.getAll` | Query | 获取所有设置 |
+| `settings.setMany` | Mutation | 批量保存设置 |
+| `audit.list` | Query | 审计日志 |
+
+### 数据库表结构
+
+系统包含 13 张业务表：
+
+| 表名 | 说明 |
+|------|------|
+| `users` | 用户信息与角色 |
+| `projects` | 渗透测试项目 |
+| `project_members` | 项目成员权限 |
+| `project_files` | 项目文件内容 |
+| `payloads` | 载荷信息与检测结果 |
+| `templates` | 代码模板 |
+| `template_versions` | 模板版本历史 |
+| `builds` | 构建记录与产物 |
+| `ai_sessions` | AI 对话会话 |
+| `ai_usage_stats` | AI 使用统计（按日） |
+| `audit_logs` | 操作审计日志 |
+| `system_settings` | 系统配置 KV 存储 |
+| `code_snippets` | 代码片段库 |
+
+---
+
+## 开发规范
+
+### 代码规范
+
+- 使用 TypeScript 严格模式，禁止 `any` 类型（核心业务代码）
+- 组件文件使用 PascalCase，工具函数使用 camelCase
+- tRPC 路由文件按功能模块拆分，单文件不超过 150 行
+- 数据库操作统一通过 Drizzle ORM，禁止原始 SQL（迁移除外）
+
+### 提交规范
+
 ```
+feat: 新功能
+fix: Bug 修复
+docs: 文档更新
+style: 样式调整
+refactor: 代码重构
+test: 测试相关
+chore: 构建/工具链
+```
+
+### 安全规范
+
+- AI 接口调用必须在服务端执行，禁止在前端暴露 API Key
+- 所有用户输入须经过 Zod Schema 验证
+- 敏感配置（API Key）在前端显示时使用密码掩码
+- 所有操作记录写入审计日志
+
+---
+
+## 许可证
+
+本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
+
+---
+
+*本系统仅供授权的安全研究和渗透测试使用，请遵守相关法律法规。*
