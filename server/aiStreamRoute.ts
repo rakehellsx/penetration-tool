@@ -7,6 +7,7 @@ import { getDb } from "./db";
 import { aiUsageStats, auditLogs, aiSessions, systemSettings } from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 import { appendFileSessionMessages } from "./aiSessionFileStore";
+import { listFileSettings } from "./settingsFileStore";
 
 const execFileAsync = promisify(execFile);
 
@@ -49,12 +50,10 @@ async function getOpenCodeConfig(override?: Partial<OpenCodeConfig>): Promise<Op
   let apiKey = override?.apiKey || process.env.OPENCODE_API_KEY || readDotenvValue("OPENCODE_API_KEY") || "";
   try {
     const db = await getDb();
-    if (db) {
-      const settings = await db.select().from(systemSettings);
-      const get = (key: string) => settings.find(s => s.key === key)?.value;
-      apiUrl = override?.apiUrl || get("ai.opencodeApiUrl") || apiUrl;
-      apiKey = override?.apiKey || get("ai.opencodeApiKey") || apiKey;
-    }
+    const settings = db ? await db.select().from(systemSettings) : await listFileSettings();
+    const get = (key: string) => settings.find(s => s.key === key)?.value;
+    apiUrl = override?.apiUrl || get("ai.opencodeApiUrl") || apiUrl;
+    apiKey = override?.apiKey || get("ai.opencodeApiKey") || apiKey;
   } catch {}
   return { apiUrl: normalizeOpenCodeBase(apiUrl), apiKey };
 }

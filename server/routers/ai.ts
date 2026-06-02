@@ -5,13 +5,12 @@ import { aiSessions, aiUsageStats, auditLogs } from "../../drizzle/schema";
 import { eq, desc } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 import { systemSettings } from "../../drizzle/schema";
-import { eq as eqOp } from "drizzle-orm";
 import { createFileSession, deleteFileSession, listFileSessions, updateFileSession } from "../aiSessionFileStore";
+import { listFileSettings } from "../settingsFileStore";
 
 async function getAiConfig(db: any) {
-  if (!db) return {};
   try {
-    const settings = await db.select().from(systemSettings);
+    const settings = db ? await db.select().from(systemSettings) : await listFileSettings();
     const get = (key: string) => settings.find((s: any) => s.key === key)?.value;
     return {
       model: get("ai.model") ?? undefined,
