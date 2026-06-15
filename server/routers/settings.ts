@@ -3,62 +3,81 @@ import { publicProcedure, router } from "../_core/trpc";
 import { getDb } from "../db";
 import { systemSettings } from "../../drizzle/schema";
 import { eq } from "drizzle-orm";
+import { getFileSetting, listFileSettings, setFileSetting, setManyFileSettings } from "../settingsFileStore";
+
+const settingInputSchema = z.object({
+  key: z.string(),
+  value: z.string(),
+  category: z.string().optional(),
+});
 
 export const settingsRouter = router({
   getAll: publicProcedure.query(async () => {
     const db = await getDb();
-    if (!db) return [];
+    if (!db) return await listFileSettings();
+
     try {
       return await db.select().from(systemSettings);
-    } catch { return []; }
+    } catch {
+      return await listFileSettings();
+    }
   }),
 
   get: publicProcedure
     .input(z.object({ key: z.string() }))
     .query(async ({ input }) => {
       const db = await getDb();
-      if (!db) return null;
+      if (!db) return await getFileSetting(input.key);
+
       try {
         const rows = await db.select().from(systemSettings).where(eq(systemSettings.key, input.key)).limit(1);
         return rows[0] ?? null;
-      } catch { return null; }
+      } catch {
+        return await getFileSetting(input.key);
+      }
     }),
 
   set: publicProcedure
-    .input(z.object({
-      key: z.string(),
-      value: z.string(),
-      category: z.string().optional(),
-    }))
+    .input(settingInputSchema)
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new Error("DB unavailable");
-      const existing = await db.select().from(systemSettings).where(eq(systemSettings.key, input.key)).limit(1);
-      if (existing[0]) {
-        await db.update(systemSettings).set({ value: input.value }).where(eq(systemSettings.key, input.key));
-      } else {
-        await db.insert(systemSettings).values(input);
+      if (!db) {
+        await setFileSetting(input);
+        return { success: true };
       }
-      return { success: true };
+
+      try {
+        const existing = await db.select().from(systemSettings).where(eq(systemSettings.key, input.key)).limit(1);
+        if (existing[0]) {
+          await db.update(systemSettings).set({ value: input.value, category: input.category }).where(eq(systemSettings.key, input.key));
+        } else {
+          await db.insert(systemSettings).values(input);
+        }
+        return { success: true };
+      } catch {
+        await setFileSetting(input);
+        return { success: true };
+      }
     }),
 
   setMany: publicProcedure
-    .input(z.array(z.object({
-      key: z.string(),
-      value: z.string(),
-      category: z.string().optional(),
-    })))
+    .input(z.array(settingInputSchema))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new Error("DB unavailable");
-      for (const item of input) {
-        const existing = await db.select().from(systemSettings).where(eq(systemSettings.key, item.key)).limit(1);
-        if (existing[0]) {
-          await db.update(systemSettings).set({ value: item.value }).where(eq(systemSettings.key, item.key));
-        } else {
-          await db.insert(systemSettings).values(item);
+      if (!db) return await setManyFileSettings(input);
+
+      try {
+        for (const item of input) {
+          const existing = await db.select().from(systemSettings).where(eq(systemSettings.key, item.key)).limit(1);
+          if (existing[0]) {
+            await db.update(systemSettings).set({ value: item.value, category: item.category }).where(eq(systemSettings.key, item.key));
+          } else {
+            await db.insert(systemSettings).values(item);
+          }
         }
+        return { success: true };
+      } catch {
+        return await setManyFileSettings(input);
       }
-      return { success: true };
     }),
 });

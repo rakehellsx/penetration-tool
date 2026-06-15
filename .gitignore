@@ -112,3 +112,13 @@ temp/
 # Manus version file (auto-generated, not part of source)
 client/public/__manus__/version.json
 .project-config.json
+
+# Local production secrets and runtime artifacts
+.env.production
+data/
+generated/
+reverse_shell.exe
+reverse_shell.go
+web_assistant_test_notes.md
+web_validation_notes.md
+scripts_patch_system_settings.py

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -96,12 +96,8 @@ const MODULE_COLORS: Record<string, string> = {
 
 export default function SystemSettings() {
   const [aiConfig, setAiConfig] = useState({
-    apiKey: "sk-••••••••••••••••••••••••",
-    model: "gpt-4o",
-    temperature: 0.7,
-    maxTokens: 4096,
-    baseUrl: "https://api.openai.com/v1",
-    streamEnabled: true,
+    opencodeApiUrl: "http://127.0.0.1:4096",
+    opencodeApiKey: "",
   });
   const [compilerConfig, setCompilerConfig] = useState({
     gccPath: "/usr/bin/gcc",
@@ -134,13 +130,46 @@ export default function SystemSettings() {
   const [sshStatus, setSshStatus] = useState<"unknown" | "connected" | "disconnected" | "testing">("unknown");
 
   const { data: auditLogs = [] } = trpc.audit.list.useQuery({ limit: 30 });
+  const { data: settings = [] } = trpc.settings.getAll.useQuery();
   const saveMutation = trpc.settings.setMany.useMutation({
     onSuccess: () => toast.success("设置已保存 ✓"),
     onError: () => toast.error("保存失败"),
   });
 
+  useEffect(() => {
+    const getSetting = (key: string) => settings.find((item: any) => item.key === key)?.value;
+    const opencodeApiUrl = getSetting("ai.opencodeApiUrl");
+    const opencodeApiKey = getSetting("ai.opencodeApiKey");
+    if (opencodeApiUrl || opencodeApiKey) {
+      setAiConfig(c => ({
+        ...c,
+        opencodeApiUrl: opencodeApiUrl ?? c.opencodeApiUrl,
+        opencodeApiKey: opencodeApiKey ?? c.opencodeApiKey,
+      }));
+    }
+  }, [settings]);
+
   const testConnection = async (type: "ai" | "vt" | "ssh") => {
-    if (type === "ai") { setAiStatus("testing"); setTimeout(() => setAiStatus(aiConfig.apiKey.startsWith("sk-") ? "connected" : "disconnected"), 1500); }
+    if (type === "ai") {
+      setAiStatus("testing");
+      try {
+        const response = await fetch("/api/ai/opencode/test", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            opencodeApiUrl: aiConfig.opencodeApiUrl,
+            opencodeApiKey: aiConfig.opencodeApiKey,
+          }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok || !result.success) throw new Error(result.message ?? "连接测试失败");
+        setAiStatus("connected");
+        toast.success(`OpenCode 连接正常：${result.providerCount ?? 0} 个提供商`);
+      } catch (err: any) {
+        setAiStatus("disconnected");
+        toast.error(err?.message ?? "OpenCode 连接失败");
+      }
+    }
     if (type === "vt") { setVtStatus("testing"); setTimeout(() => setVtStatus(integrations.virusTotalKey.length > 20 ? "connected" : "disconnected"), 1500); }
     if (type === "ssh") { setSshStatus("testing"); setTimeout(() => setSshStatus(compilerConfig.remoteHost ? "connected" : "disconnected"), 1500); }
   };
@@ -173,63 +202,34 @@ export default function SystemSettings() {
 
         {/* AI Config */}
         <TabsContent value="ai" className="space-y-4 mt-4">
-          <SectionCard title="AI 模型配置" description="配置 OpenAI 兼容 API 接口参数" icon={Bot} iconColor="bg-grad-purple" status={aiStatus}>
+          <SectionCard title="OpenCode API 设置" description="智能助手统一通过本地 OpenCode API 调度 DeepSeek 模型" icon={Bot} iconColor="bg-grad-purple" status={aiStatus}>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">API Key</Label>
-                <PasswordInput value={aiConfig.apiKey} onChange={v => setAiConfig(c => ({ ...c, apiKey: v }))} placeholder="sk-..." />
+                <Label className="text-xs font-semibold">OpenCode API</Label>
+                <Input value={aiConfig.opencodeApiUrl} onChange={e => setAiConfig(c => ({ ...c, opencodeApiUrl: e.target.value }))} placeholder="http://127.0.0.1:4096" className="font-mono text-sm" />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Base URL</Label>
-                <Input value={aiConfig.baseUrl} onChange={e => setAiConfig(c => ({ ...c, baseUrl: e.target.value }))} className="font-mono text-sm" />
+                <Label className="text-xs font-semibold">OpenCode Key</Label>
+                <PasswordInput value={aiConfig.opencodeApiKey} onChange={v => setAiConfig(c => ({ ...c, opencodeApiKey: v }))} placeholder="可选：OPENCODE_SERVER_PASSWORD" />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">模型</Label>
-                <Select value={aiConfig.model} onValueChange={v => setAiConfig(c => ({ ...c, model: v }))}>
-                  <SelectTrigger className="text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "claude-3-5-sonnet", "deepseek-coder", "qwen2.5-coder"].map(m => (
-                      <SelectItem key={m} value={m}><span className="font-mono text-xs">{m}</span></SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold">Max Tokens</Label>
-                <Input type="number" value={aiConfig.maxTokens} onChange={e => setAiConfig(c => ({ ...c, maxTokens: parseInt(e.target.value) || 4096 }))} className="text-sm" />
-              </div>
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-xs font-semibold">Temperature: <span className="font-mono text-primary">{aiConfig.temperature}</span></Label>
-                <Badge variant="secondary" className="text-[10px]">
-                  {aiConfig.temperature < 0.3 ? "精确" : aiConfig.temperature < 0.7 ? "平衡" : "创意"}
-                </Badge>
-              </div>
-              <Slider value={[aiConfig.temperature]} onValueChange={([v]) => setAiConfig(c => ({ ...c, temperature: v }))} min={0} max={1} step={0.1} />
-            </div>
-            <div className="flex items-center justify-between p-3 rounded-xl bg-muted/40 border border-border">
-              <div className="flex items-center gap-2">
-                <Zap className="w-4 h-4 text-amber-500" />
+            <div className="p-3 rounded-xl bg-muted/40 border border-border">
+              <div className="flex items-start gap-2">
+                <Info className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-xs font-semibold">流式响应</p>
-                  <p className="text-[10px] text-muted-foreground">启用后 AI 回复将逐字显示</p>
+                  <p className="text-xs font-semibold">当前模型由 OpenCode 统一管理</p>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">本项目后端会读取上述 OpenCode API 与 Key，向 OpenCode 创建会话并转发流式事件；DeepSeek Provider 与模型在 OpenCode 配置中维护。</p>
                 </div>
               </div>
-              <Switch checked={aiConfig.streamEnabled} onCheckedChange={v => setAiConfig(c => ({ ...c, streamEnabled: v }))} />
             </div>
             <div className="flex gap-2">
               <Button size="sm" variant="outline" className="gap-1.5" onClick={() => testConnection("ai")}>
-                <Activity className="w-3.5 h-3.5" /> 测试连接
+                <Activity className="w-3.5 h-3.5" /> 测试 OpenCode
               </Button>
               <Button size="sm" className="gap-1.5 bg-grad-primary border-0"
                 onClick={() => saveMutation.mutate([
-                  { key: "ai.model", value: aiConfig.model, category: "ai" },
-                  { key: "ai.temperature", value: aiConfig.temperature.toString(), category: "ai" },
-                  { key: "ai.maxTokens", value: aiConfig.maxTokens.toString(), category: "ai" },
-                  { key: "ai.baseUrl", value: aiConfig.baseUrl, category: "ai" },
+                  { key: "ai.opencodeApiUrl", value: aiConfig.opencodeApiUrl, category: "ai" },
+                  { key: "ai.opencodeApiKey", value: aiConfig.opencodeApiKey, category: "ai" },
                 ])}>
                 <Save className="w-3.5 h-3.5" /> 保存配置
               </Button>

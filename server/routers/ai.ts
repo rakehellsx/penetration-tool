@@ -5,12 +5,12 @@ import { aiSessions, aiUsageStats, auditLogs } from "../../drizzle/schema";
 import { eq, desc } from "drizzle-orm";
 import { invokeLLM } from "../_core/llm";
 import { systemSettings } from "../../drizzle/schema";
-import { eq as eqOp } from "drizzle-orm";
+import { createFileSession, deleteFileSession, listFileSessions, updateFileSession } from "../aiSessionFileStore";
+import { listFileSettings } from "../settingsFileStore";
 
 async function getAiConfig(db: any) {
-  if (!db) return {};
   try {
-    const settings = await db.select().from(systemSettings);
+    const settings = db ? await db.select().from(systemSettings) : await listFileSettings();
     const get = (key: string) => settings.find((s: any) => s.key === key)?.value;
     return {
       model: get("ai.model") ?? undefined,
@@ -51,9 +51,9 @@ export const aiRouter = router({
     .input(z.object({ archived: z.boolean().optional() }).optional())
     .query(async ({ ctx, input }) => {
       const db = await getDb();
-      if (!db) return [];
+      const ownerId = (ctx.user as any)?.id ?? 1;
+      if (!db) return listFileSessions(ownerId, input?.archived);
       try {
-        const ownerId = (ctx.user as any)?.id ?? 1;
         const rows = await db.select().from(aiSessions)
           .where(eq(aiSessions.ownerId, ownerId))
           .orderBy(desc(aiSessions.updatedAt));
@@ -71,8 +71,11 @@ export const aiRouter = router({
     }))
     .mutation(async ({ input, ctx }) => {
       const db = await getDb();
-      if (!db) throw new Error("DB unavailable");
       const ownerId = (ctx.user as any)?.id ?? 1;
+      if (!db) {
+        const session = await createFileSession({ name: input.name, contextProjectId: input.contextProjectId, ownerId });
+        return { id: session.id };
+      }
       const [result] = await db.insert(aiSessions).values({
         name: input.name,
         ownerId,
@@ -98,8 +101,11 @@ export const aiRouter = router({
     }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new Error("DB unavailable");
       const { id, ...data } = input;
+      if (!db) {
+        await updateFileSession(id, data);
+        return { success: true };
+      }
       await db.update(aiSessions).set(data).where(eq(aiSessions.id, id));
       return { success: true };
     }),
@@ -108,7 +114,7 @@ export const aiRouter = router({
     .input(z.object({ id: z.number() }))
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new Error("DB unavailable");
+      if (!db) return deleteFileSession(input.id);
       await db.delete(aiSessions).where(eq(aiSessions.id, input.id));
       return { success: true };
     }),

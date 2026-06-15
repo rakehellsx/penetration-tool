@@ -1,0 +1,21 @@
+[Unit]
+Description=Penetration Tool Web Application
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/penetration-tool
+EnvironmentFile=/opt/penetration-tool/.env.production
+Environment=NODE_ENV=production
+Environment=PATH=/usr/local/go/bin:/home/ubuntu/.opencode/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/usr/bin/bash /opt/penetration-tool/scripts/production-start.sh
+Restart=always
+RestartSec=5
+User=ubuntu
+Group=ubuntu
+StandardOutput=append:/opt/penetration-tool/logs/app.log
+StandardError=append:/opt/penetration-tool/logs/app-error.log
+
+[Install]
+WantedBy=multi-user.target
